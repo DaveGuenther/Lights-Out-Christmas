@@ -39,3 +39,21 @@
 
 # debug information files
 *.dwo
+
+# Build directories
+build-*/
+build/
+cmake-build-*/
+out/
+.cmake/
+
+# IDE
+.vscode/settings.json
+.idea/
+*.user
+
+# vcpkg
+vcpkg_installed/
+
+# Generated files
+*.autosave

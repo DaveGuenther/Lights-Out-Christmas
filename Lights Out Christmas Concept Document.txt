@@ -1,0 +1,61 @@
+Lights Out Christmas
+
+CORE GAMEPLAY
+The side-scrolling screen moves at a constant pace like Paperboy, set against a dark winter night sky. The squirrel moves across multiple "lanes" — ground level, fence tops, tree branches, power lines, and rooftops — each with different speeds, hazards, and access to different light strings. Biting through a light string triggers a satisfying cascade effect where the whole strand goes dark. Bonus points for taking out an entire house's display in one run.
+________________________________________
+SCORING
+•	Lights bitten = base points
+•	Full house blackout = big multiplier
+•	Chain reactions (one cut kills multiple strands) = combo bonus
+•	Speed bonus for doing it quickly before the homeowner notices
+•	Neighborhood darkness meter that fills as you wreak havoc — fill it completely for a stage bonus
+________________________________________
+POWER UPS
+•	Acorn Stash — temporary speed boost, the squirrel is caffeinated and frantic
+•	Winter Coat — brief invincibility, homeowners can't grab you
+•	Shadow Mode — the squirrel goes nearly invisible, won't trigger porch lights or homeowner alerts
+•	Super Chomp — bite through reinforced or tangled light strings instantly
+•	Decoy Nut — toss an acorn to distract a chasing homeowner or a dog
+•	Ice Patch — freeze a pursuing threat in place temporarily
+•	Double Tail — splits into two squirrels briefly, covering twice the ground
+•	Frenzy Mode — everything slows down slightly while you move at full speed (bullet-time style)
+________________________________________
+THREATS
+•	Homeowners — alerted when you're caught in the light of an active display; they run out with varying speeds (the grumpy old man is slow but relentless, the dad in pajamas is fast but gives up easily)
+•	Porch Lights — motion-activated, if they catch you they alert the homeowner
+•	Dogs — chained at first but can reach certain ground-level paths, bark to alert owners even if they can't reach you
+•	Cats — sneaky, don't alert anyone but will chase you across rooftops and power lines
+•	Ice patches on roofs — slippery, hard to control
+•	Tangled lights — some strands are knotted and take multiple bites, slowing you down dangerously
+•	Ladder-climbing homeowners — if you've been spotted, some homeowners will anticipate your rooftop path and try to cut you off
+•	Neighborhood Watch car — slowly cruises the street; if you're on the ground when it passes, it's game over
+•	Owl — lurks in trees at night, grabs you if you stay on a branch too long
+________________________________________
+LEVEL / WORLD IDEAS
+•	Suburban Street — starter level, simple house layouts, basic displays
+•	Rich Neighborhood — elaborate synchronized displays, harder to fully black out but massive points
+•	The Cul-de-Sac — the screen loops slightly, disorienting, homeowners coordinate
+•	Christmas Eve — everyone is home and hyper-vigilant, maximum threat density
+•	The Town Square — a massive community display with a giant Christmas tree at the center as the ultimate target
+________________________________________
+VISUAL / AESTHETIC IDEAS
+•	Deep blue-black night sky with pixel stars and a full moon
+•	Warm glowing light from windows contrasting against the cold dark street
+•	When a strand goes dark, it flickers and pops with a little pixel spark effect
+•	The squirrel has a little mischievous animation when it bites through a strand
+•	Snow falling in the background, accumulating on rooftops
+•	Each house has a distinct personality visible through pixel art — inflatable decorations, lawn nativity scenes, candy cane path lights, roof Santas
+•	Score combos flash in big retro arcade font
+________________________________________
+AUDIO IDEAS
+•	Chiptune remix of Christmas carols that gets more frantic as the chaos meter rises
+•	Satisfying "pop and fizzle" sound when lights go out
+•	Homeowner shout samples in 8-bit style ("Hey! Get outta there!")
+•	The neighborhood gets progressively quieter and darker as you succeed — a creeping silence that feels rewarding
+________________________________________
+PROGRESSION IDEAS
+•	Upgrade your squirrel between levels — faster bite, quieter movement, longer jump
+•	Unlock new squirrel skins (e.g. tiny Santa hat, elf costume worn ironically)
+•	Leaderboard for total neighborhood darkness percentage
+•	A final boss level where you face the most elaborately decorated house on the block, guarded by the most alert homeowner and a particularly aggressive dog
+
