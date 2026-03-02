@@ -106,10 +106,7 @@ set(GAMEPLAY_SOURCES
 
 set(RENDERING_SOURCES
     src/rendering/Renderer.cpp
-    src/rendering/Sprite.cpp
-    src/rendering/Animation.cpp
     src/rendering/Particles.cpp
-    src/rendering/Camera.cpp
 )
 
 set(UI_SOURCES
