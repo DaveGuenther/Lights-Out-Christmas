@@ -1,6 +1,7 @@
 #pragma once
 #include "core/Types.h"
 #include <SDL2/SDL.h>
+#include <string>
 #include <vector>
 
 namespace LightsOut {

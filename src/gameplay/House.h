@@ -14,8 +14,10 @@ enum class HouseStyle {
 
 class House : public Entity {
 public:
+    // roofStrands/windowStrands/porchStrands: light strings per tier (0 = no lights on that tier)
     House(float worldX, float worldWidth, HouseStyle style,
-          int houseIndex, int lightStringsCount, float tangledProb);
+          int houseIndex, int roofStrands, int windowStrands, int porchStrands,
+          float tangledProb);
 
     void update(float dt) override;
     void render(SDL_Renderer* renderer, float cameraX) override;
@@ -31,22 +33,23 @@ public:
 
     // Triggered when player gets near with a homeowner on alert
     void triggerPorchLight();
-    void resetPorchLight(float delaySeconds);  // reset after delay
+    void resetPorchLight(float delaySeconds);
 
     // Color palette for this house's decorations
     Color wallColor;
     Color roofColor;
 
 private:
-    int       m_houseIndex;
+    int        m_houseIndex;
     HouseStyle m_style;
-    bool      m_porchLightOn    = false;
-    float     m_porchResetTimer = 0.0f;
-    bool      m_porchResetting  = false;
+    bool       m_porchLightOn    = false;
+    float      m_porchResetTimer = 0.0f;
+    bool       m_porchResetting  = false;
 
     std::vector<std::shared_ptr<LightString>> m_lightStrings;
 
     void placeRoofLights(int count, float tangledProb);
+    void placeWindowLights(int count, float tangledProb);
     void placePorchLights(int count, float tangledProb);
     void drawHouseBody(SDL_Renderer* renderer, float screenX) const;
     void drawPorchLight(SDL_Renderer* renderer, float screenX) const;

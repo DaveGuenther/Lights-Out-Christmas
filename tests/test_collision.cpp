@@ -3,6 +3,7 @@
 
 using namespace LightsOut;
 using namespace LightsOut::Collision;
+using Catch::Approx;
 
 TEST_CASE("Collision: overlapping rects", "[collision]") {
     Rect a{0, 0, 10, 10};

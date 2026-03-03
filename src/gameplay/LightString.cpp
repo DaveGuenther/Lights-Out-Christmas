@@ -1,6 +1,7 @@
 #include "gameplay/LightString.h"
 #include "core/Constants.h"
 #include <cmath>
+#include <numbers>
 #include <algorithm>
 #include <random>
 
@@ -187,7 +188,7 @@ void LightString::updateCascade(float dt) {
 
 void LightString::spawnSparks(const Vec2& at) {
     std::uniform_real_distribution<float> angleDist(0.0f,
-        2.0f * static_cast<float>(M_PI));
+        2.0f * std::numbers::pi_v<float>);
     std::uniform_real_distribution<float> speedDist(SPARK_SPEED * 0.5f, SPARK_SPEED);
 
     for (int i = 0; i < SPARK_PARTICLE_COUNT; ++i) {

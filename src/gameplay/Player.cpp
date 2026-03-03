@@ -4,6 +4,7 @@
 #include <SDL2/SDL.h>
 #include <cmath>
 #include <algorithm>
+#include <random>
 
 namespace LightsOut {
 
@@ -45,21 +46,22 @@ void Player::moveDown() {
     m_jumpProgress = 0.0f;
 }
 
-void Player::tryBite(const std::vector<std::shared_ptr<LightString>>& nearbyStrings) {
+void Player::tryBite(const std::vector<std::shared_ptr<LightString>>& nearbyStrings, float cameraX) {
     if (m_state == PlayerState::Dead || m_state == PlayerState::Jumping) return;
     m_state = PlayerState::Biting;
     m_animTimer = 0.0f;
 
     float playerCenterY = position.y + height * 0.5f;
+    float playerScreenX = PLAYER_START_X + width * 0.5f;
     LightString* closest = nullptr;
     float closestDist    = PLAYER_BITE_RANGE * 2.0f;
 
     for (const auto& ls : nearbyStrings) {
         if (ls->isFullyOff() || ls->alive == false) continue;
 
-        // Check X proximity
-        float lsCenterX = ls->position.x + ls->width * 0.5f;
-        float dx = std::abs((PLAYER_START_X + width * 0.5f) - lsCenterX);
+        // Convert light world X to screen X for comparison with player screen X
+        float lsScreenX = (ls->position.x + ls->width * 0.5f) - cameraX;
+        float dx = std::abs(playerScreenX - lsScreenX);
         if (dx > PLAYER_BITE_RANGE) continue;
 
         // Check Y proximity (within PLAYER_BITE_RANGE vertically)
@@ -148,6 +150,24 @@ void Player::updateAnimation(float dt) {
         m_animTimer = 0.0f;
         m_animFrame = (m_animFrame + 1) % 4;
     }
+}
+
+void Player::respawn() {
+    m_state        = PlayerState::Idle;
+    m_currentLane  = LaneType::Ground;
+    m_targetLane   = LaneType::Ground;
+    position.y     = laneY(LaneType::Ground) - height * 0.5f;
+    m_jumpProgress = 0.0f;
+
+    // Drop any active power-ups (died, so they're lost)
+    m_speedBoostTimer = 0.0f;  m_speedBoostMult = 1.0f;
+    m_shadowTimer     = 0.0f;
+    m_superChompTimer = 0.0f;
+    m_frenzyTimer     = 0.0f;
+    m_doubleTailTimer = 0.0f;
+
+    // Brief invincibility so the player can reorient
+    m_invincibleTimer = PLAYER_RESPAWN_INVINCIBILITY;
 }
 
 void Player::applySpeedBoost(float mult, float dur)  { m_speedBoostMult = mult; m_speedBoostTimer = dur; }

@@ -1,7 +1,9 @@
 #include "core/AudioManager.h"
+#include "core/Constants.h"
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_mixer.h>
 #include <cmath>
+#include <numbers>
 #include <vector>
 
 namespace LightsOut {
@@ -129,7 +131,7 @@ Mix_Chunk* AudioManager::generateBeep(int frequency, int durationMs, int volume)
             float total   = static_cast<float>(durationMs) / 1000.0f - attack;
             env = 1.0f - std::min(1.0f, elapsed / total);
         }
-        float wave = std::sin(2.0f * static_cast<float>(M_PI) * frequency * t);
+        float wave = std::sin(2.0f * std::numbers::pi_v<float> * frequency * t);
         samples[i] = static_cast<Sint16>(wave * env * volume * 256);
     }
 

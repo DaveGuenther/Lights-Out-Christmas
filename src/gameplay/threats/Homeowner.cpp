@@ -16,6 +16,7 @@ Homeowner::Homeowner(float worldX, float worldY, Personality p)
     width  = 10.0f;
     height = 16.0f;
 
+    m_chaseDuration = THREAT_CHASE_DURATION + 2.0f;
     m_speed = (p == Personality::GrumpyOldMan)
               ? HOMEOWNER_GRUMPY_SPEED
               : HOMEOWNER_DAD_SPEED;

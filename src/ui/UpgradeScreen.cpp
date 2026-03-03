@@ -10,7 +10,7 @@ UpgradeScreen::UpgradeScreen(Game& game, int levelScore, int totalScore)
     : Screen(game)
     , m_levelScore(levelScore)
     , m_totalScore(totalScore)
-    , m_spendable(levelScore)
+    , m_spendable(totalScore)
 {
     buildOptions();
 }
@@ -37,6 +37,7 @@ bool UpgradeScreen::canAfford(const UpgradeOption& opt) const {
 void UpgradeScreen::purchase(const UpgradeOption& opt) {
     if (!canAfford(opt)) return;
     m_spendable -= opt.cost;
+    m_game.deductScore(opt.cost);
 
     auto& upg = m_game.upgrades();
     switch (opt.type) {
@@ -52,20 +53,22 @@ void UpgradeScreen::purchase(const UpgradeOption& opt) {
 void UpgradeScreen::handleInput() {
     auto& input = m_game.input();
 
-    if (input.isActionJustPressed(Action::MenuUp)) {
+    if (input.isActionJustPressed(Action::MoveUp)) {
         m_selected = (m_selected - 1 + static_cast<int>(m_options.size())) %
                      static_cast<int>(m_options.size());
     }
-    if (input.isActionJustPressed(Action::MenuDown)) {
+    if (input.isActionJustPressed(Action::MoveDown)) {
         m_selected = (m_selected + 1) % static_cast<int>(m_options.size());
     }
-    if (input.isActionJustPressed(Action::Bite) ||
-        input.isActionJustPressed(Action::MenuConfirm)) {
+    if (input.isActionJustPressed(Action::MenuConfirm)) {
         if (canAfford(m_options[m_selected])) {
             purchase(m_options[m_selected]);
+        } else {
+            // Can't buy — treat as "done, move on"
+            m_game.replaceState(GameState::Playing);
         }
     }
-    // Skip upgrades
+    // ESC / back = skip upgrades
     if (input.isActionJustPressed(Action::Pause) ||
         input.isActionJustPressed(Action::MenuBack)) {
         m_game.replaceState(GameState::Playing);
@@ -104,7 +107,7 @@ void UpgradeScreen::drawTitle(SDL_Renderer* r) const {
 void UpgradeScreen::drawOptions(SDL_Renderer* r) const {
     (void)r;
     auto& renderer = m_game.renderer();
-    float startY = 38.0f;
+    float startY = 52.0f;
     float rowH   = 22.0f;
 
     for (int i = 0; i < static_cast<int>(m_options.size()); ++i) {
@@ -154,16 +157,20 @@ void UpgradeScreen::drawOptions(SDL_Renderer* r) const {
                           sel ? Color{180, 180, 200} : Color{100, 100, 120});
     }
 
-    renderer.drawText("PRESS ESC TO SKIP",
+    renderer.drawText("ENTER: BUY OR CONTINUE  ESC: SKIP",
                       {RENDER_WIDTH * 0.5f, RENDER_HEIGHT - 8.0f},
                       {80, 80, 100}, 8, true);
 }
 
 void UpgradeScreen::drawBudget(SDL_Renderer* r) const {
     (void)r;
-    m_game.renderer().drawText("POINTS: " + std::to_string(m_spendable),
-                               {RENDER_WIDTH - 5.0f, 8.0f},
-                               {255, 200, 50});
+    auto& renderer = m_game.renderer();
+    renderer.drawText("TOTAL: " + std::to_string(m_spendable),
+                      {RENDER_WIDTH * 0.5f, 30.0f},
+                      {255, 200, 50}, 8, true);
+    renderer.drawText("THIS LEVEL: +" + std::to_string(m_levelScore),
+                      {RENDER_WIDTH * 0.5f, 40.0f},
+                      {100, 220, 100}, 8, true);
 }
 
 void UpgradeScreen::drawSquirrelPreview(SDL_Renderer* r) const {

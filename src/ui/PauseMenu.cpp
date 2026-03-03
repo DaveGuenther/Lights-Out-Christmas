@@ -20,11 +20,11 @@ void PauseMenu::handleInput() {
         m_game.popState();
         return;
     }
-    if (input.isActionJustPressed(Action::MenuUp)) {
+    if (input.isActionJustPressed(Action::MoveUp)) {
         m_selected = (m_selected - 1 + static_cast<int>(m_items.size())) %
                      static_cast<int>(m_items.size());
     }
-    if (input.isActionJustPressed(Action::MenuDown)) {
+    if (input.isActionJustPressed(Action::MoveDown)) {
         m_selected = (m_selected + 1) % static_cast<int>(m_items.size());
     }
     if (input.isActionJustPressed(Action::MenuConfirm) ||

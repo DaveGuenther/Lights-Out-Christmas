@@ -23,15 +23,11 @@ inline constexpr float SCROLL_SPEED_INCREASE = 2.5f;    // per level
 inline constexpr float MAX_SCROLL_SPEED      = 120.0f;
 
 // ─── Lanes (Y = pixel position in render space, top-down) ────────────────────
-// Lane 0: Rooftop    (~y 35)
-// Lane 1: Power Line (~y 65)
-// Lane 2: Branch     (~y 95)
-// Lane 3: Fence      (~y 130)
-// Lane 4: Ground     (~y 160)
-inline constexpr int   NUM_LANES          = 5;
-inline constexpr float LANE_ROOFTOP_Y     = 38.0f;
-inline constexpr float LANE_POWERLINE_Y   = 66.0f;
-inline constexpr float LANE_BRANCH_Y      = 95.0f;
+// Lane 0: Rooftop  (y 95)  — squirrel runs along the roofline
+// Lane 1: Fence    (y 128) — porch / fence level
+// Lane 2: Ground   (y 160) — street / garden level
+inline constexpr int   NUM_LANES          = 3;
+inline constexpr float LANE_ROOFTOP_Y     = 95.0f;
 inline constexpr float LANE_FENCE_Y       = 128.0f;
 inline constexpr float LANE_GROUND_Y      = 160.0f;
 
@@ -42,6 +38,8 @@ inline constexpr float PLAYER_JUMP_SPEED  = 120.0f;  // vertical speed when jump
 inline constexpr float PLAYER_WIDTH       = 12.0f;
 inline constexpr float PLAYER_HEIGHT      = 14.0f;
 inline constexpr float PLAYER_BITE_RANGE  = 16.0f;   // horizontal range for biting lights
+inline constexpr int   PLAYER_LIVES       = 3;
+inline constexpr float PLAYER_RESPAWN_INVINCIBILITY = 2.5f;  // invincibility seconds on respawn
 
 // ─── Scoring ─────────────────────────────────────────────────────────────────
 inline constexpr int POINTS_PER_LIGHT           = 10;
@@ -68,6 +66,8 @@ inline constexpr int   LIGHT_BITES_TANGLED = 3;     // bites needed for tangled 
 inline constexpr float SPARK_DURATION      = 0.4f;  // seconds for the spark effect
 
 // ─── Threats ─────────────────────────────────────────────────────────────────
+inline constexpr float THREAT_CHASE_DURATION = 4.5f;  // seconds before giving up
+inline constexpr float THREAT_FALL_ACCEL     = 220.0f; // pixels/sec² when falling
 inline constexpr float HOMEOWNER_GRUMPY_SPEED  = 30.0f;
 inline constexpr float HOMEOWNER_DAD_SPEED     = 55.0f;
 inline constexpr float DOG_CHAIN_RADIUS        = 40.0f;
@@ -106,10 +106,10 @@ inline constexpr int COMBO_FONT_SIZE     = 20;
 inline constexpr float COMBO_DISPLAY_TIME = 1.5f;  // seconds
 
 // ─── Upgrade costs ───────────────────────────────────────────────────────────
-inline constexpr int UPGRADE_BITE_SPEED_COST    = 200;
-inline constexpr int UPGRADE_MOVE_SPEED_COST    = 250;
-inline constexpr int UPGRADE_QUIET_STEPS_COST   = 300;
-inline constexpr int UPGRADE_JUMP_HEIGHT_COST   = 150;
+inline constexpr int UPGRADE_JUMP_HEIGHT_COST   = 30000;
+inline constexpr int UPGRADE_BITE_SPEED_COST    = 35000;
+inline constexpr int UPGRADE_MOVE_SPEED_COST    = 40000;
+inline constexpr int UPGRADE_QUIET_STEPS_COST   = 50000;
 
 // ─── Level count ─────────────────────────────────────────────────────────────
 inline constexpr int NUM_LEVELS = 5;

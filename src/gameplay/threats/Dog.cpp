@@ -15,6 +15,7 @@ Dog::Dog(float worldX, float worldY, float chainRadius)
     width  = 10.0f;
     height = 8.0f;
     m_speed = 45.0f;
+    m_chaseDuration = THREAT_CHASE_DURATION;
 }
 
 void Dog::alert(const Vec2& playerPos) {

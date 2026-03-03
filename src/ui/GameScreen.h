@@ -29,6 +29,7 @@ private:
     void drawPowerUpHUD(SDL_Renderer* r) const;
     void drawComboFlash(SDL_Renderer* r) const;
     void drawLaneIndicator(SDL_Renderer* r) const;
+    void drawLivesHUD(SDL_Renderer* r) const;
 
     void onScorePopup(int pts, Vec2 worldPos);
     void onLevelComplete();

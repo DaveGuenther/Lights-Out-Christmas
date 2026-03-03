@@ -21,6 +21,8 @@ set(TESTABLE_SOURCES
     ${CMAKE_SOURCE_DIR}/src/gameplay/LightString.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/Entity.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/DarknessManager.cpp
+    ${CMAKE_SOURCE_DIR}/src/gameplay/House.cpp
+    ${CMAKE_SOURCE_DIR}/src/gameplay/BushTree.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/powerups/PowerUp.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/powerups/AcornStash.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/powerups/WinterCoat.cpp
@@ -31,6 +33,12 @@ set(TESTABLE_SOURCES
     ${CMAKE_SOURCE_DIR}/src/gameplay/powerups/DoubleTail.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/powerups/FrenzyMode.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/threats/Threat.cpp
+    ${CMAKE_SOURCE_DIR}/src/gameplay/threats/Homeowner.cpp
+    ${CMAKE_SOURCE_DIR}/src/gameplay/threats/Dog.cpp
+    ${CMAKE_SOURCE_DIR}/src/gameplay/threats/Cat.cpp
+    ${CMAKE_SOURCE_DIR}/src/gameplay/threats/Owl.cpp
+    ${CMAKE_SOURCE_DIR}/src/gameplay/threats/NeighborhoodWatch.cpp
+    ${CMAKE_SOURCE_DIR}/src/gameplay/Player.cpp
 )
 
 set(TEST_SOURCES
@@ -42,6 +50,8 @@ set(TEST_SOURCES
     test_power_ups.cpp
     test_threats.cpp
     test_darkness_manager.cpp
+    test_house.cpp
+    test_bush_tree.cpp
 )
 
 add_executable(LightsOutTests ${TEST_SOURCES} ${TESTABLE_SOURCES})
@@ -54,10 +64,8 @@ target_link_libraries(LightsOutTests PRIVATE
     Catch2::Catch2WithMain
     SDL2::SDL2
 )
-
-if(WIN32)
-    target_link_libraries(LightsOutTests PRIVATE SDL2::SDL2main)
-endif()
+# SDL2main is not linked here — it hijacks WinMain, which conflicts with
+# Catch2WithMain's own entry point.  The game executable links it separately.
 
 include(Catch)
 catch_discover_tests(LightsOutTests)

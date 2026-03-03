@@ -38,20 +38,75 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 # ─── SDL2 Dependencies ───────────────────────────────────────────────────────
-find_package(SDL2 REQUIRED CONFIG NAMES SDL2)
-find_package(SDL2_image REQUIRED CONFIG NAMES SDL2_image)
-find_package(SDL2_mixer REQUIRED CONFIG NAMES SDL2_mixer)
-find_package(SDL2_ttf REQUIRED CONFIG NAMES SDL2_ttf)
+# Search order:
+#   1. Explicit -DCMAKE_PREFIX_PATH or vcpkg toolchain (user override / CI)
+#   2. MSYS2 mingw64  (Windows, auto-detected)
+#   3. CMake CONFIG files (vcpkg, MSYS2, Ubuntu 22.04+, Arch, Homebrew)
+#   4. PkgConfig      (older Linux distros that ship no CMake config files)
+#
+# To use a custom SDL2 location on any platform:
+#   cmake -DCMAKE_PREFIX_PATH=/path/to/sdl2 ...
 
-# Handle different SDL2 CMake target names (vcpkg vs system)
-if(TARGET SDL2::SDL2)
-    set(SDL2_TARGET SDL2::SDL2)
-elseif(TARGET SDL2::SDL2-static)
-    set(SDL2_TARGET SDL2::SDL2-static)
-else()
-    set(SDL2_TARGET ${SDL2_LIBRARIES})
-    include_directories(${SDL2_INCLUDE_DIRS})
+# --- Windows: probe MSYS2 when no toolchain file is in use -------------------
+if(WIN32 AND NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+    foreach(_msys_root
+            "$ENV{MSYS2_ROOT}/mingw64"
+            "C:/msys64/mingw64"
+            "C:/msys2/mingw64")
+        if(EXISTS "${_msys_root}")
+            list(APPEND CMAKE_PREFIX_PATH "${_msys_root}")
+            message(STATUS "SDL2: using MSYS2 prefix ${_msys_root}")
+            break()
+        endif()
+    endforeach()
 endif()
+
+# --- Attempt CONFIG mode (preferred on all platforms) ------------------------
+find_package(SDL2       QUIET CONFIG)
+find_package(SDL2_image QUIET CONFIG NAMES SDL2_image sdl2_image)
+find_package(SDL2_mixer QUIET CONFIG NAMES SDL2_mixer sdl2_mixer)
+find_package(SDL2_ttf   QUIET CONFIG NAMES SDL2_ttf   sdl2_ttf)
+
+# --- PkgConfig fallback for Linux distros without CMake config files ---------
+# (Ubuntu < 22.04, Debian Bullseye, older Fedora/CentOS, etc.)
+if(UNIX AND NOT WIN32)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        # Helper: if CONFIG mode missed a package, try pkgconfig and create
+        # a namespaced INTERFACE target so the rest of the file is unchanged.
+        # Requires CMake >= 3.18 for ALIAS of IMPORTED targets (we need 3.20).
+        macro(_sdl2_pkgconfig_fallback PKG_VAR PC_NAME NS_TARGET)
+            if(NOT ${PKG_VAR}_FOUND)
+                pkg_check_modules(${PKG_VAR} QUIET IMPORTED_TARGET ${PC_NAME})
+                if(${PKG_VAR}_FOUND AND NOT TARGET ${NS_TARGET})
+                    add_library(${NS_TARGET} ALIAS PkgConfig::${PKG_VAR})
+                    message(STATUS "SDL2: ${PKG_VAR} found via PkgConfig (${PC_NAME})")
+                endif()
+            endif()
+        endmacro()
+        _sdl2_pkgconfig_fallback(SDL2       sdl2       SDL2::SDL2)
+        _sdl2_pkgconfig_fallback(SDL2_image SDL2_image SDL2_image::SDL2_image)
+        _sdl2_pkgconfig_fallback(SDL2_mixer SDL2_mixer SDL2_mixer::SDL2_mixer)
+        _sdl2_pkgconfig_fallback(SDL2_ttf   SDL2_ttf   SDL2_ttf::SDL2_ttf)
+    endif()
+endif()
+
+# --- Verify all packages were found ------------------------------------------
+foreach(_pkg SDL2 SDL2_image SDL2_mixer SDL2_ttf)
+    if(NOT ${_pkg}_FOUND)
+        message(FATAL_ERROR
+            "${_pkg} not found.\n"
+            "  Windows (MSYS2): pacman -S mingw-w64-x86_64-SDL2 "
+            "mingw-w64-x86_64-SDL2_image mingw-w64-x86_64-SDL2_mixer "
+            "mingw-w64-x86_64-SDL2_ttf\n"
+            "  Ubuntu/Debian:   apt install libsdl2-dev libsdl2-image-dev "
+            "libsdl2-mixer-dev libsdl2-ttf-dev\n"
+            "  Arch/Manjaro:    pacman -S sdl2 sdl2_image sdl2_mixer sdl2_ttf\n"
+            "  Fedora/RHEL:     dnf install SDL2-devel SDL2_image-devel "
+            "SDL2_mixer-devel SDL2_ttf-devel\n"
+            "  Custom path:     cmake -DCMAKE_PREFIX_PATH=/your/sdl2/root ...")
+    endif()
+endforeach()
 
 # ─── Optional Steamworks SDK ─────────────────────────────────────────────────
 option(USE_STEAM "Enable Steamworks SDK integration" OFF)
@@ -83,6 +138,7 @@ set(GAMEPLAY_SOURCES
     src/gameplay/Lane.cpp
     src/gameplay/LightString.cpp
     src/gameplay/House.cpp
+    src/gameplay/BushTree.cpp
     src/gameplay/GameWorld.cpp
     src/gameplay/ScoreSystem.cpp
     src/gameplay/Collision.cpp
@@ -137,16 +193,19 @@ target_include_directories(LightsOutChristmas PRIVATE
     ${CMAKE_SOURCE_DIR}/src
 )
 
+# On Windows SDL2main must precede SDL2 in the link order: SDL2main.a
+# references symbols (SDL_SetMainReady etc.) that are defined in SDL2.dll.a,
+# and the single-pass MinGW linker only searches already-seen archives.
+if(WIN32)
+    target_link_libraries(LightsOutChristmas PRIVATE SDL2::SDL2main)
+endif()
+
 target_link_libraries(LightsOutChristmas PRIVATE
     SDL2::SDL2
     SDL2_image::SDL2_image
     SDL2_mixer::SDL2_mixer
     SDL2_ttf::SDL2_ttf
 )
-
-if(WIN32)
-    target_link_libraries(LightsOutChristmas PRIVATE SDL2::SDL2main)
-endif()
 
 if(USE_STEAM AND STEAMWORKS_SDK_PATH)
     target_link_libraries(LightsOutChristmas PRIVATE ${STEAM_LIB})

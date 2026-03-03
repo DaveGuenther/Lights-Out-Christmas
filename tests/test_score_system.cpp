@@ -3,6 +3,7 @@
 #include "core/Constants.h"
 
 using namespace LightsOut;
+using Catch::Approx;
 
 TEST_CASE("ScoreSystem: starts at zero", "[score]") {
     ScoreSystem s;

@@ -66,6 +66,18 @@ void Game::run() {
 
         processEvents();
 
+        // Handle input ONCE per visual frame, before the physics loop.
+        // beginFrame() is called every visual frame in processEvents(), so
+        // isActionJustPressed() is valid here regardless of the physics rate.
+        // Calling handleInput() inside the fixed-step loop would miss key
+        // presses at high refresh rates (144Hz+) because beginFrame() would
+        // clear the "just pressed" state before the physics step ever ran.
+        if (m_stateDirty) {
+            m_stateDirty = false;
+            buildScreenForState(currentState());
+        }
+        if (m_currentScreen) m_currentScreen->handleInput();
+
         m_accumulator += frameTime;
         while (m_accumulator >= FIXED_TIMESTEP) {
             update(FIXED_TIMESTEP);
@@ -98,7 +110,6 @@ void Game::update(float dt) {
         buildScreenForState(currentState());
     }
     if (m_currentScreen) {
-        m_currentScreen->handleInput();
         m_currentScreen->update(dt);
     }
 }
@@ -176,6 +187,7 @@ void Game::shutdown() {
 void Game::resetProgress() {
     m_totalScore   = 0;
     m_currentLevel = 0;
+    m_lives        = PLAYER_LIVES;
     m_upgrades     = SquirrelUpgrades{};
 }
 

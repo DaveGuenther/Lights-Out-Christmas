@@ -8,13 +8,13 @@
 namespace LightsOut {
 
 static LevelConfig buildConfig(int levelIndex) {
-    // Mirror the configs from GameWorld.cpp
+    // Must match the configs in GameWorld.cpp exactly.
     static const LevelConfig configs[NUM_LEVELS] = {
-        {"SUBURBAN STREET",   45.0f, 0.30f, 0.40f, false, false, 2, 0.10f},
-        {"RICH NEIGHBORHOOD", 50.0f, 0.45f, 0.30f, false, false, 4, 0.30f},
-        {"THE CUL-DE-SAC",    55.0f, 0.50f, 0.35f, true,  false, 3, 0.25f},
-        {"CHRISTMAS EVE",     60.0f, 0.70f, 0.25f, false, true,  4, 0.40f},
-        {"TOWN SQUARE",       65.0f, 0.80f, 0.20f, true,  true,  6, 0.50f},
+        {"SUBURBAN STREET",   45.0f, 0.30f, 0.40f, false, false, 1, 0.05f, 0.50f, 0.65f, 0.30f},
+        {"RICH NEIGHBORHOOD", 50.0f, 0.45f, 0.30f, false, false, 2, 0.15f, 0.35f, 0.40f, 0.40f},
+        {"THE CUL-DE-SAC",   55.0f, 0.50f, 0.35f, true,  false, 2, 0.20f, 0.20f, 0.25f, 0.45f},
+        {"CHRISTMAS EVE",    60.0f, 0.70f, 0.25f, false, true,  2, 0.30f, 0.10f, 0.10f, 0.25f},
+        {"TOWN SQUARE",      65.0f, 0.80f, 0.20f, true,  true,  3, 0.40f, 0.05f, 0.05f, 0.15f},
     };
     int i = std::max(0, std::min(levelIndex, NUM_LEVELS - 1));
     return configs[i];
@@ -79,6 +79,7 @@ void GameScreen::drawHUD(SDL_Renderer* r) const {
     drawDarknessMeter(r);
     drawComboFlash(r);
     drawLaneIndicator(r);
+    drawLivesHUD(r);
 }
 
 void GameScreen::drawScoreHUD(SDL_Renderer* r) const {
@@ -86,8 +87,9 @@ void GameScreen::drawScoreHUD(SDL_Renderer* r) const {
     auto& renderer = m_game.renderer();
     const auto& score = m_world.scoreSystem();
 
-    // Score
-    std::string scoreStr = "SCORE " + std::to_string(score.score());
+    // Score — show running total (prior levels + current level so far)
+    int displayScore = m_game.totalScore() + score.score();
+    std::string scoreStr = "SCORE " + std::to_string(displayScore);
     renderer.drawText(scoreStr, {2.0f, 2.0f}, Color::White());
 
     // Level name
@@ -192,7 +194,40 @@ void GameScreen::onLevelComplete() {
     }
 }
 
+void GameScreen::drawLivesHUD(SDL_Renderer* r) const {
+    // Three small squirrel-body pips in bottom-right corner
+    float baseX = RENDER_WIDTH - 8.0f;
+    float baseY = RENDER_HEIGHT - 10.0f;
+    int   lives = m_game.lives();
+
+    for (int i = 0; i < PLAYER_LIVES; ++i) {
+        float x = baseX - static_cast<float>(i) * 10.0f;
+        bool active = (i < lives);
+
+        SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
+        // Body
+        SDL_SetRenderDrawColor(r, 140, 85, 30, active ? 255 : 70);
+        SDL_FRect body = {x, baseY + 2.0f, 7.0f, 6.0f};
+        SDL_RenderFillRectF(r, &body);
+        // Head
+        SDL_FRect head = {x + 3.0f, baseY, 5.0f, 4.0f};
+        SDL_RenderFillRectF(r, &head);
+        // Tail
+        SDL_SetRenderDrawColor(r, 180, 110, 40, active ? 255 : 70);
+        SDL_FRect tail = {x - 2.0f, baseY + 1.0f, 3.0f, 3.0f};
+        SDL_RenderFillRectF(r, &tail);
+        SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
+    }
+}
+
 void GameScreen::onGameOver() {
+    if (m_game.lives() > 0) {
+        m_game.decrementLives();
+        m_world.respawnPlayer();
+        return;  // continue playing with remaining lives
+    }
+    // All lives exhausted — real game over
+    m_game.resetLives();
     m_game.audio().stopMusic();
     m_game.audio().playSfx(SoundEffect::GameOver);
     m_game.addScore(m_world.scoreSystem().levelScore());

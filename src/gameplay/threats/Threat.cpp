@@ -13,9 +13,29 @@ void Threat::update(float dt) {
         m_frozenTimer = std::max(0.0f, m_frozenTimer - dt);
         return;
     }
+
+    // Falling off screen after giving up chase
+    if (m_falling) {
+        m_fallVelocity += THREAT_FALL_ACCEL * dt;
+        position.y     += m_fallVelocity * dt;
+        if (position.y > static_cast<float>(RENDER_HEIGHT) + 20.0f)
+            alive = false;
+        return;
+    }
+
     if (m_distracted) return;
 
     if (m_alerted && m_speed > 0.0f) {
+        // Count chase time; give up after chaseDuration (if set)
+        if (m_chaseDuration > 0.0f) {
+            m_chaseElapsed += dt;
+            if (m_chaseElapsed >= m_chaseDuration) {
+                m_alerted = false;
+                m_falling = true;
+                return;
+            }
+        }
+
         // Move toward target
         float dx = m_targetPos.x - position.x;
         float dy = m_targetPos.y - position.y;

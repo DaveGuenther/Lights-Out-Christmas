@@ -57,3 +57,6 @@ vcpkg_installed/
 
 # Generated files
 *.autosave
+
+#LLM
+**.claude/

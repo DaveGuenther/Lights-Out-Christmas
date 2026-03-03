@@ -10,10 +10,11 @@ Owl::Owl(float worldX, float worldY) : Threat(ThreatType::Owl) {
     position.y = worldY;
     width  = 12.0f;
     height = 14.0f;
-    m_speed = 80.0f;  // fast dive
+    m_speed = 80.0f;
+    m_chaseDuration = THREAT_CHASE_DURATION - 1.5f;  // owls give up faster
 }
 
-void Owl::playerOnBranch(bool on) {
+void Owl::playerOnFence(bool on) {
     m_playerPresent = on;
     if (!on) {
         m_patienceTimer = 0.0f;

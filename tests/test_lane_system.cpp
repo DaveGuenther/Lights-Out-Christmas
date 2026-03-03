@@ -3,29 +3,24 @@
 #include "core/Constants.h"
 
 using namespace LightsOut;
+using Catch::Approx;
 
 TEST_CASE("Lane: Y positions match constants", "[lane]") {
-    REQUIRE(laneY(LaneType::Rooftop)   == Approx(LANE_ROOFTOP_Y));
-    REQUIRE(laneY(LaneType::PowerLine) == Approx(LANE_POWERLINE_Y));
-    REQUIRE(laneY(LaneType::Branch)    == Approx(LANE_BRANCH_Y));
-    REQUIRE(laneY(LaneType::Fence)     == Approx(LANE_FENCE_Y));
-    REQUIRE(laneY(LaneType::Ground)    == Approx(LANE_GROUND_Y));
+    REQUIRE(laneY(LaneType::Rooftop) == Approx(LANE_ROOFTOP_Y));
+    REQUIRE(laneY(LaneType::Fence)   == Approx(LANE_FENCE_Y));
+    REQUIRE(laneY(LaneType::Ground)  == Approx(LANE_GROUND_Y));
 }
 
 TEST_CASE("Lane: laneAbove returns correct lane", "[lane]") {
-    REQUIRE(laneAbove(LaneType::Ground)    == LaneType::Fence);
-    REQUIRE(laneAbove(LaneType::Fence)     == LaneType::Branch);
-    REQUIRE(laneAbove(LaneType::Branch)    == LaneType::PowerLine);
-    REQUIRE(laneAbove(LaneType::PowerLine) == LaneType::Rooftop);
-    REQUIRE(laneAbove(LaneType::Rooftop)   == LaneType::Rooftop);  // stays at top
+    REQUIRE(laneAbove(LaneType::Ground)  == LaneType::Fence);
+    REQUIRE(laneAbove(LaneType::Fence)   == LaneType::Rooftop);
+    REQUIRE(laneAbove(LaneType::Rooftop) == LaneType::Rooftop);  // stays at top
 }
 
 TEST_CASE("Lane: laneBelow returns correct lane", "[lane]") {
-    REQUIRE(laneBelow(LaneType::Rooftop)   == LaneType::PowerLine);
-    REQUIRE(laneBelow(LaneType::PowerLine) == LaneType::Branch);
-    REQUIRE(laneBelow(LaneType::Branch)    == LaneType::Fence);
-    REQUIRE(laneBelow(LaneType::Fence)     == LaneType::Ground);
-    REQUIRE(laneBelow(LaneType::Ground)    == LaneType::Ground);  // stays at bottom
+    REQUIRE(laneBelow(LaneType::Rooftop) == LaneType::Fence);
+    REQUIRE(laneBelow(LaneType::Fence)   == LaneType::Ground);
+    REQUIRE(laneBelow(LaneType::Ground)  == LaneType::Ground);  // stays at bottom
 }
 
 TEST_CASE("Lane: laneIndex and laneFromIndex are inverse", "[lane]") {
@@ -53,10 +48,10 @@ TEST_CASE("Lane: laneInfo returns correct attributes", "[lane]") {
     REQUIRE(groundInfo.hasCats == false);
     REQUIRE(groundInfo.hasOwl == false);
 
-    LaneInfo branchInfo = laneInfo(LaneType::Branch);
-    REQUIRE(branchInfo.hasOwl == true);
-    REQUIRE(branchInfo.hasCats == true);
-    REQUIRE(branchInfo.hasHomeowners == false);
+    LaneInfo fenceInfo = laneInfo(LaneType::Fence);
+    REQUIRE(fenceInfo.hasOwl == true);
+    REQUIRE(fenceInfo.hasCats == true);
+    REQUIRE(fenceInfo.hasHomeowners == false);
 
     LaneInfo rooftopInfo = laneInfo(LaneType::Rooftop);
     REQUIRE(rooftopInfo.slippery == true);

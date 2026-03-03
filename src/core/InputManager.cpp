@@ -125,6 +125,7 @@ bool InputManager::scancodeToAction(SDL_Scancode sc, Action& out) const {
     case SDL_SCANCODE_P:
         out = Action::Pause;     return true;
     case SDL_SCANCODE_RETURN:
+    case SDL_SCANCODE_KP_ENTER:
         out = Action::MenuConfirm; return true;
     default:
         return false;

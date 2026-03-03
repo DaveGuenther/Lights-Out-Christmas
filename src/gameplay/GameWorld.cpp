@@ -22,17 +22,23 @@ namespace LightsOut {
 
 // ─── Level configs ────────────────────────────────────────────────────────────
 static LevelConfig getLevelConfig(int index) {
+    // name, scrollSpeed, threatDensity, powerUpFrequency,
+    // homeownersCoordinate, hasNeighborhoodWatch,
+    // lightStringsPerHouse (strands per tier on hard houses),
+    // tangledLightProbability, darkHouseProbability,
+    // easyHouseFraction, mediumHouseFraction
+    // (hard fraction = 1 - easy - medium, for lit houses only)
     static const LevelConfig configs[NUM_LEVELS] = {
-        // 0: Suburban Street
-        {"SUBURBAN STREET",  45.0f, 0.30f, 0.40f, false, false, 2, 0.10f},
-        // 1: Rich Neighborhood
-        {"RICH NEIGHBORHOOD", 50.0f, 0.45f, 0.30f, false, false, 4, 0.30f},
-        // 2: The Cul-De-Sac
-        {"THE CUL-DE-SAC",   55.0f, 0.50f, 0.35f, true,  false, 3, 0.25f},
-        // 3: Christmas Eve
-        {"CHRISTMAS EVE",    60.0f, 0.70f, 0.25f, false, true,  4, 0.40f},
-        // 4: The Town Square
-        {"TOWN SQUARE",      65.0f, 0.80f, 0.20f, true,  true,  6, 0.50f},
+        // 0: Suburban Street — easy: mostly 1-tier, a few 2-tier, rarely 3-tier
+        {"SUBURBAN STREET",   45.0f, 0.30f, 0.40f, false, false, 1, 0.05f, 0.50f, 0.65f, 0.30f},
+        // 1: Rich Neighborhood — moderate mix
+        {"RICH NEIGHBORHOOD", 50.0f, 0.45f, 0.30f, false, false, 2, 0.15f, 0.35f, 0.40f, 0.40f},
+        // 2: The Cul-De-Sac — medium-hard
+        {"THE CUL-DE-SAC",   55.0f, 0.50f, 0.35f, true,  false, 2, 0.20f, 0.20f, 0.25f, 0.45f},
+        // 3: Christmas Eve — hard: mostly 3-tier
+        {"CHRISTMAS EVE",    60.0f, 0.70f, 0.25f, false, true,  2, 0.30f, 0.10f, 0.10f, 0.25f},
+        // 4: The Town Square — hardest: almost all 3-tier
+        {"TOWN SQUARE",      65.0f, 0.80f, 0.20f, true,  true,  3, 0.40f, 0.05f, 0.05f, 0.15f},
     };
     int i = std::max(0, std::min(index, NUM_LEVELS - 1));
     return configs[i];
@@ -43,7 +49,7 @@ GameWorld::GameWorld(const LevelConfig& config, SquirrelUpgrades upgrades,
                      unsigned int randomSeed)
     : m_config(config)
     , m_scrollSpeed(config.scrollSpeed)
-    , m_levelLength(3000.0f)
+    , m_levelLength(config.scrollSpeed * 30.0f)  // 30-second level
     , m_rng(randomSeed == 0 ? static_cast<unsigned>(SDL_GetTicks()) : randomSeed)
 {
     m_player.setUpgrades(upgrades);
@@ -78,23 +84,41 @@ void GameWorld::update(float dt) {
     // Scroll world
     m_cameraX += m_scrollSpeed * dt * frenzy;
 
-    // Generate ahead
-    while (m_genHorizon < m_cameraX + RENDER_WIDTH * 2.5f) {
+    // Generate ahead — keep at least 3 screen-widths of houses in the buffer
+    while (m_genHorizon < m_cameraX + RENDER_WIDTH * 3.0f) {
         generateChunk(m_genHorizon);
     }
 
     // Update entities
-    for (auto& h : m_houses) h->update(dt);
+    for (auto& h : m_houses)  h->update(dt);
+    for (auto& bt : m_bushTrees) bt->update(dt);
+
+    const float playerWorldX = PLAYER_START_X + m_cameraX;
+    const Vec2  playerWorld  = {playerWorldX, laneY(m_player.currentLane())};
+
     for (auto& t : m_threats) {
+        // ── Owl: patience/attack based on player being on the fence lane nearby ──
         if (auto* owl = dynamic_cast<Owl*>(t.get())) {
-            bool onBranch = (m_player.currentLane() == LaneType::Branch &&
-                             std::abs(m_player.position.x - owl->position.x) < 40.0f);
-            owl->playerOnBranch(onBranch);
+            bool onFence = (m_player.currentLane() == LaneType::Fence &&
+                            std::abs(playerWorldX - owl->position.x) < 60.0f);
+            owl->playerOnFence(onFence);
         }
+
+        // ── Proximity alerting for all other threats ──────────────────────────
+        // Alert any un-alerted threat that has scrolled to within one screen
+        // width of the player (i.e., it is visible or about to be visible).
+        if (!t->isAlerted()) {
+            float screenX = t->position.x - m_cameraX;
+            if (screenX > -16.0f && screenX < static_cast<float>(RENDER_WIDTH) + 16.0f) {
+                t->alert(playerWorld);
+            }
+        }
+
         t->update(dt);
-        // Update threat target toward player world position
+
+        // Keep alerted threats' target locked on the player's current position
         if (t->isAlerted())
-            t->alert({PLAYER_START_X + m_cameraX, laneY(m_player.currentLane())});
+            t->alert(playerWorld);
     }
     m_player.update(dt);
     for (auto& p : m_powerups) p->update(dt);
@@ -120,16 +144,17 @@ void GameWorld::render(SDL_Renderer* renderer) {
     renderMoon(renderer);
     renderStars(renderer);
 
-    for (auto& h : m_houses)  h->render(renderer, m_cameraX);
-    for (auto& t : m_threats) t->render(renderer, m_cameraX);
+    for (auto& h : m_houses)     h->render(renderer, m_cameraX);
+    for (auto& bt : m_bushTrees) bt->render(renderer, m_cameraX);
+    for (auto& t : m_threats)    t->render(renderer, m_cameraX);
     for (auto& p : m_powerups) p->render(renderer, m_cameraX);
     m_player.render(renderer, m_cameraX);
 
+    renderLighting(renderer);
     renderSnow(renderer);
 
     // Draw lane guide lines (subtle)
-    static const LaneType lanes[] = {LaneType::Rooftop, LaneType::PowerLine,
-                                      LaneType::Branch,  LaneType::Fence};
+    static const LaneType lanes[] = {LaneType::Rooftop, LaneType::Fence};
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(renderer, 100, 100, 140, 30);
     for (auto lane : lanes) {
@@ -147,7 +172,7 @@ void GameWorld::render(SDL_Renderer* renderer) {
 void GameWorld::playerMoveUp()   { if (!m_gameOver) m_player.moveUp(); }
 void GameWorld::playerMoveDown() { if (!m_gameOver) m_player.moveDown(); }
 void GameWorld::playerBite()     { if (!m_gameOver) {
-    m_player.tryBite(m_lights);
+    m_player.tryBite(m_lights, m_cameraX);
     // Clean up fully-dark strings
     m_lights.erase(
         std::remove_if(m_lights.begin(), m_lights.end(),
@@ -186,6 +211,18 @@ void GameWorld::playerUsePowerUp() {
     m_heldPowerUp.reset();
 }
 
+void GameWorld::respawnPlayer() {
+    m_gameOver = false;
+    m_player.respawn();
+
+    // Freeze nearby threats so the player has breathing room
+    for (auto& t : m_threats) {
+        float dx = t->position.x - (PLAYER_START_X + m_cameraX);
+        if (std::abs(dx) < static_cast<float>(RENDER_WIDTH) * 0.6f)
+            t->freeze(PLAYER_RESPAWN_INVINCIBILITY);
+    }
+}
+
 // ─── Generation ──────────────────────────────────────────────────────────────
 void GameWorld::generateChunk(float fromX) {
     std::uniform_real_distribution<float> widthDist(HOUSE_MIN_WIDTH, HOUSE_MAX_WIDTH);
@@ -196,10 +233,45 @@ void GameWorld::generateChunk(float fromX) {
     HouseStyle style = HouseStyle::Simple;
     if (m_houseCount % 5 == 4) style = HouseStyle::Elaborate;
 
+    // ── Determine per-tier strand counts ────────────────────────────────────
+    int roofStrands = 0, winStrands = 0, porchStrands = 0;
+
+    if (prob(m_rng) >= m_config.darkHouseProbability) {
+        // Lit house — assign difficulty
+        float r = prob(m_rng);
+        HouseDifficulty diff;
+        if      (r < m_config.easyHouseFraction)
+            diff = HouseDifficulty::Easy;
+        else if (r < m_config.easyHouseFraction + m_config.mediumHouseFraction)
+            diff = HouseDifficulty::Medium;
+        else
+            diff = HouseDifficulty::Hard;
+
+        int s = m_config.lightStringsPerHouse;  // strands per tier
+        if (s < 1) s = 1;
+
+        if (diff == HouseDifficulty::Easy) {
+            // One tier, chosen randomly: roof, window, or porch
+            std::uniform_int_distribution<int> tierDist(0, 2);
+            switch (tierDist(m_rng)) {
+            case 0: roofStrands  = s; break;
+            case 1: winStrands   = s; break;
+            case 2: porchStrands = s; break;
+            }
+        } else if (diff == HouseDifficulty::Medium) {
+            // Two adjacent tiers: roof+window or window+porch
+            if (prob(m_rng) < 0.5f) { roofStrands = s; winStrands   = s; }
+            else                    { winStrands   = s; porchStrands = s; }
+        } else {
+            // Hard: all three tiers
+            roofStrands = s; winStrands = s; porchStrands = s;
+        }
+    }
+
     int houseIdx = m_houseCount++;
     auto house = std::make_shared<House>(
         fromX, houseW, style, houseIdx,
-        m_config.lightStringsPerHouse,
+        roofStrands, winStrands, porchStrands,
         m_config.tangledLightProbability);
 
     m_houseTotalStrands[houseIdx] = static_cast<int>(house->lightStrings().size());
@@ -233,7 +305,32 @@ void GameWorld::generateChunk(float fromX) {
         spawnPowerUp(fromX + houseW * 0.3f);
     }
 
-    m_genHorizon = fromX + houseW + gapDist(m_rng);
+    float gap = gapDist(m_rng);
+    m_genHorizon = fromX + houseW + gap;
+
+    // Spawn a bush or tree in the gap between houses (60% chance)
+    if (gap >= 28.0f && prob(m_rng) < 0.60f) {
+        int  busIdx   = m_bushCount++;
+        auto bushType = (prob(m_rng) < 0.5f)
+                        ? BushTree::Type::Bush
+                        : BushTree::Type::PineTree;
+        // Trees and bushes have 1 light string by default; harder levels get 2
+        int lights = (m_config.easyHouseFraction < 0.3f) ? 2 : 1;
+        float bx   = fromX + houseW + gap * 0.5f - 10.0f;
+        auto bt    = std::make_shared<BushTree>(bx, bushType, lights,
+                                                m_config.tangledLightProbability,
+                                                busIdx);
+        // Wire light-dark callbacks
+        for (auto& ls : bt->lightStrings()) {
+            ls->onDark = [this](int bulbCount, bool chain) {
+                m_score.onLightOff(bulbCount);
+                m_darkness.onLightOff(bulbCount);
+                if (chain) m_score.onChainReaction(1);
+            };
+            m_lights.push_back(ls);
+        }
+        m_bushTrees.push_back(bt);
+    }
 }
 
 void GameWorld::spawnThreat(float worldX) {
@@ -269,7 +366,7 @@ void GameWorld::spawnThreat(float worldX) {
         break;
     }
     case 3: {
-        auto t = std::make_shared<Owl>(worldX, LANE_BRANCH_Y - 14.0f);
+        auto t = std::make_shared<Owl>(worldX, LANE_FENCE_Y - 14.0f);
         m_threats.push_back(t);
         break;
     }
@@ -388,16 +485,19 @@ void GameWorld::checkPorchLights() {
 }
 
 void GameWorld::pruneOffscreen() {
+    // Use the same 3-screen-width lookahead as generation so we never prune
+    // entities that were just generated ahead of the camera.
+    const float lookahead = static_cast<float>(RENDER_WIDTH) * 3.0f;
     auto prune = [&](auto& vec) {
         vec.erase(
             std::remove_if(vec.begin(), vec.end(),
-                [this](const auto& e) {
-                    return !e->alive || e->isOffscreen(m_cameraX,
-                        static_cast<float>(RENDER_WIDTH));
+                [this, lookahead](const auto& e) {
+                    return !e->alive || e->isOffscreen(m_cameraX, lookahead);
                 }),
             vec.end());
     };
     prune(m_houses);
+    prune(m_bushTrees);
     prune(m_lights);
     prune(m_threats);
     prune(m_powerups);
@@ -497,6 +597,43 @@ void GameWorld::renderStars(SDL_Renderer* renderer) const {
         SDL_SetRenderDrawColor(renderer, bright, bright, bright, bright);
         SDL_RenderDrawPoint(renderer, sx, sy);
     }
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+}
+
+// ─── Lighting ────────────────────────────────────────────────────────────────
+void GameWorld::renderLighting(SDL_Renderer* renderer) const {
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+
+    // Ambient darkness overlay — deepens as lights are extinguished
+    float darkness = m_darkness.darkness();
+    uint8_t ambAlpha = static_cast<uint8_t>(25.0f + darkness * 90.0f);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 12, ambAlpha);
+    SDL_FRect full = {0.0f, 0.0f,
+                      static_cast<float>(RENDER_WIDTH),
+                      static_cast<float>(RENDER_HEIGHT)};
+    SDL_RenderFillRectF(renderer, &full);
+
+    // Additive warm glow for each active light strand
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_ADD);
+
+    // Concentric rect halos: larger = dimmer, smaller = brighter
+    static const float   RADII[] = {26.0f, 20.0f, 14.0f, 8.0f, 4.0f};
+    static const uint8_t ALP[]   = {  4,     8,    16,   28,   50};
+
+    for (const auto& ls : m_lights) {
+        if (ls->isFullyOff()) continue;
+        float sx = ls->position.x + ls->width * 0.5f - m_cameraX;
+        if (sx < -32.0f || sx > static_cast<float>(RENDER_WIDTH) + 32.0f) continue;
+        float sy = ls->position.y;
+
+        for (int i = 0; i < 5; ++i) {
+            float r = RADII[i];
+            SDL_SetRenderDrawColor(renderer, 255, 210, 120, ALP[i]);
+            SDL_FRect glow = {sx - r, sy - r, r * 2.0f, r * 2.0f};
+            SDL_RenderFillRectF(renderer, &glow);
+        }
+    }
+
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 }
 

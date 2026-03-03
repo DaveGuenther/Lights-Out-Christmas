@@ -3,6 +3,7 @@
 #include <SDL2/SDL.h>
 #include <string>
 #include <cmath>
+#include <random>
 
 namespace LightsOut {
 

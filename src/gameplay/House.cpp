@@ -9,7 +9,8 @@ namespace LightsOut {
 static std::mt19937 s_houseRng(123);
 
 House::House(float worldX, float worldWidth, HouseStyle style,
-             int houseIndex, int lightStringsCount, float tangledProb)
+             int houseIndex, int roofStrands, int windowStrands, int porchStrands,
+             float tangledProb)
     : Entity(TAG_HOUSE)
     , m_houseIndex(houseIndex)
     , m_style(style)
@@ -26,13 +27,9 @@ House::House(float worldX, float worldWidth, HouseStyle style,
     wallColor = walls[wd(s_houseRng)];
     roofColor = roofs[rd(s_houseRng)];
 
-    int roofStrings  = (style == HouseStyle::TownSquare) ? lightStringsCount
-                     : (lightStringsCount > 1 ? lightStringsCount - 1 : 1);
-    int porchStrings = (style == HouseStyle::TownSquare) ? 2
-                     : (lightStringsCount > 1 ? 1 : 0);
-
-    placeRoofLights(roofStrings, tangledProb);
-    if (porchStrings > 0) placePorchLights(porchStrings, tangledProb);
+    if (roofStrands   > 0) placeRoofLights(roofStrands, tangledProb);
+    if (windowStrands > 0) placeWindowLights(windowStrands, tangledProb);
+    if (porchStrands  > 0) placePorchLights(porchStrands, tangledProb);
 }
 
 void House::update(float dt) {
@@ -86,6 +83,21 @@ void House::placeRoofLights(int count, float tangledProb) {
         float ly = position.y + 2.0f;  // along roofline
         bool tangled = tangledDist(s_houseRng) < tangledProb;
         auto ls = std::make_shared<LightString>(lx, ly, segW - 2.0f, tangled, m_houseIndex);
+        m_lightStrings.push_back(ls);
+    }
+}
+
+void House::placeWindowLights(int count, float tangledProb) {
+    if (count <= 0) return;
+    std::uniform_real_distribution<float> tangledDist(0.0f, 1.0f);
+
+    // Window-ledge lights sit just below the window row (~20px below house top)
+    float windowY = position.y + 22.0f;
+    float segW    = width / static_cast<float>(count);
+    for (int i = 0; i < count; ++i) {
+        float lx = position.x + static_cast<float>(i) * segW;
+        bool tangled = tangledDist(s_houseRng) < tangledProb;
+        auto ls = std::make_shared<LightString>(lx, windowY, segW - 2.0f, tangled, m_houseIndex);
         m_lightStrings.push_back(ls);
     }
 }

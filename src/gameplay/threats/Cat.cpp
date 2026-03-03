@@ -10,12 +10,16 @@ Cat::Cat(float worldX, float worldY) : Threat(ThreatType::Cat) {
     position.y = worldY;
     width  = 9.0f;
     height = 7.0f;
-    m_speed      = CAT_SPEED;
+    m_speed       = CAT_SPEED;
+    m_chaseDuration = THREAT_CHASE_DURATION + 1.0f;
     m_alertRadius = 30.0f;  // auto-detect player when nearby
 }
 
 void Cat::update(float dt) {
     if (m_frozenTimer > 0.0f) { m_frozenTimer -= dt; return; }
+
+    // Fall off screen when chase duration expires
+    if (m_falling) { Threat::update(dt); return; }
 
     // Stalking phase before engaging
     if (!m_alerted) {

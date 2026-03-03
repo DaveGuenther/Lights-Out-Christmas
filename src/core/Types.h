@@ -54,8 +54,8 @@ struct Color {
     uint8_t b = 255;
     uint8_t a = 255;
 
-    Color() = default;
-    Color(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255) : r(r), g(g), b(b), a(a) {}
+    constexpr Color() = default;
+    constexpr Color(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255) : r(r), g(g), b(b), a(a) {}
 
     static constexpr Color White()       { return {255, 255, 255}; }
     static constexpr Color Black()       { return {0, 0, 0}; }
@@ -82,11 +82,9 @@ enum class GameState {
 
 // ─── Lane types ──────────────────────────────────────────────────────────────
 enum class LaneType {
-    Rooftop   = 0,
-    PowerLine = 1,
-    Branch    = 2,
-    Fence     = 3,
-    Ground    = 4
+    Rooftop = 0,
+    Fence   = 1,
+    Ground  = 2
 };
 
 // ─── Threat types ────────────────────────────────────────────────────────────
@@ -156,16 +154,22 @@ struct SquirrelUpgrades {
     static constexpr int MAX_LEVEL = 3;
 };
 
+// ─── House difficulty ─────────────────────────────────────────────────────────
+enum class HouseDifficulty { Easy, Medium, Hard };
+
 // ─── Level config ────────────────────────────────────────────────────────────
 struct LevelConfig {
     const char* name;
     float scrollSpeed;
-    float threatDensity;    // 0.0 – 1.0
-    float powerUpFrequency; // 0.0 – 1.0
+    float threatDensity;        // 0.0 – 1.0
+    float powerUpFrequency;     // 0.0 – 1.0
     bool  homeownersCoordinate;
     bool  hasNeighborhoodWatch;
-    int   lightStringsPerHouse;
+    int   lightStringsPerHouse; // strands per tier on hard houses
     float tangledLightProbability;
+    float darkHouseProbability; // chance a house is completely undecorated
+    float easyHouseFraction;    // of lit houses: 1-tier (roof OR window OR porch)
+    float mediumHouseFraction;  // of lit houses: 2 adjacent tiers; hard = remainder
 };
 
 }  // namespace LightsOut

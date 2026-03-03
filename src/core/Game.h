@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include "core/Types.h"
 #include "core/Constants.h"
 #include "core/InputManager.h"
@@ -42,11 +43,15 @@ public:
     Renderer&        renderer() { return m_renderer; }
 
     // Persistent game data (across levels)
-    SquirrelUpgrades& upgrades()         { return m_upgrades; }
+    SquirrelUpgrades& upgrades()          { return m_upgrades; }
     int               totalScore() const  { return m_totalScore; }
     void              addScore(int s)     { m_totalScore += s; }
+    void              deductScore(int s)  { m_totalScore = std::max(0, m_totalScore - s); }
     int               currentLevel() const { return m_currentLevel; }
-    void              nextLevel()         { ++m_currentLevel; }
+    void              nextLevel()          { ++m_currentLevel; }
+    int               lives()       const  { return m_lives; }
+    void              decrementLives()     { if (m_lives > 0) --m_lives; }
+    void              resetLives()         { m_lives = PLAYER_LIVES; }
     void              resetProgress();
 
     bool shouldQuit() const { return m_quit; }
@@ -76,6 +81,7 @@ private:
     SquirrelUpgrades m_upgrades;
     int              m_totalScore    = 0;
     int              m_currentLevel  = 0;
+    int              m_lives         = PLAYER_LIVES;
 
     // Fixed-timestep accumulator
     float m_accumulator = 0.0f;

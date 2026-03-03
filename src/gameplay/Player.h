@@ -38,7 +38,10 @@ public:
     // Input-driven actions
     void moveUp();
     void moveDown();
-    void tryBite(const std::vector<std::shared_ptr<LightString>>& nearbyStrings);
+    void tryBite(const std::vector<std::shared_ptr<LightString>>& nearbyStrings, float cameraX);
+
+    // Reset player state for a new life (keeps camera position)
+    void respawn();
 
     // Power-up application
     void applySpeedBoost(float multiplier, float duration);

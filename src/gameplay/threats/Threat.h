@@ -35,12 +35,18 @@ public:
 
 protected:
     ThreatType m_type;
-    bool       m_alerted    = false;
+    bool       m_alerted     = false;
     float      m_frozenTimer = 0.0f;
-    bool       m_distracted = false;
+    bool       m_distracted  = false;
     Vec2       m_targetPos;
-    float      m_speed = 30.0f;
-    float      m_alertRadius = 0.0f;  // detection radius; 0 = must be triggered externally
+    float      m_speed       = 30.0f;
+    float      m_alertRadius = 0.0f;
+
+    // Chase-then-give-up behavior
+    float m_chaseElapsed  = 0.0f;
+    float m_chaseDuration = 0.0f;  // seconds to chase before giving up; 0 = infinite
+    bool  m_falling       = false;
+    float m_fallVelocity  = 0.0f;
 
     // Draw a simple colored box representing the threat
     virtual void drawSimple(SDL_Renderer* renderer, float screenX, Color c) const;

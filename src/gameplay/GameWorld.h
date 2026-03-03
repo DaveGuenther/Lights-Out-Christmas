@@ -1,6 +1,7 @@
 #pragma once
 #include "Player.h"
 #include "House.h"
+#include "BushTree.h"
 #include "LightString.h"
 #include "ScoreSystem.h"
 #include "DarknessManager.h"
@@ -32,12 +33,18 @@ public:
     void playerBite();
     void playerUsePowerUp();
 
+    // Respawn player after losing a life (resets player state, keeps camera)
+    void respawnPlayer();
+
     // Queries
     float   scrollX()           const { return m_cameraX; }
     float   scrollSpeed()       const { return m_scrollSpeed; }
-    Player& player()                  { return m_player; }
-    ScoreSystem& scoreSystem()        { return m_score; }
-    DarknessManager& darkness()       { return m_darkness; }
+    Player&             player()                  { return m_player; }
+    const Player&       player()            const { return m_player; }
+    ScoreSystem&        scoreSystem()             { return m_score; }
+    const ScoreSystem&  scoreSystem()       const { return m_score; }
+    DarknessManager&    darkness()               { return m_darkness; }
+    const DarknessManager& darkness()      const { return m_darkness; }
     bool    isGameOver()        const { return m_gameOver; }
     float   levelProgress()     const;   // 0→1 through the level
     float   levelLength()       const { return m_levelLength; }
@@ -74,6 +81,7 @@ private:
     std::unique_ptr<PowerUp> m_heldPowerUp;
 
     std::vector<std::shared_ptr<House>>     m_houses;
+    std::vector<std::shared_ptr<BushTree>>  m_bushTrees;
     std::vector<std::shared_ptr<LightString>> m_lights;
     std::vector<std::shared_ptr<Threat>>    m_threats;
     std::vector<std::shared_ptr<PowerUp>>   m_powerups;
@@ -84,6 +92,7 @@ private:
     float       m_nextPowerUpX  = 0.0f;
     float       m_genHorizon    = 0.0f;  // how far ahead we've generated
     int         m_houseCount    = 0;
+    int         m_bushCount     = 0;
     std::mt19937 m_rng;
 
     // House blackout tracking: houseIndex → how many light strings are dark
@@ -99,6 +108,7 @@ private:
     void renderBackground(SDL_Renderer* renderer) const;
     void renderMoon(SDL_Renderer* renderer) const;
     void renderStars(SDL_Renderer* renderer) const;
+    void renderLighting(SDL_Renderer* renderer) const;
 };
 
 }  // namespace LightsOut

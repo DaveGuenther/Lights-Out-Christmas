@@ -12,7 +12,7 @@ public:
     void render(SDL_Renderer* renderer, float cameraX) override;
 
     // Notify the owl that the player is (or isn't) on this branch
-    void playerOnBranch(bool on);
+    void playerOnFence(bool on);
 
 private:
     bool  m_playerPresent = false;

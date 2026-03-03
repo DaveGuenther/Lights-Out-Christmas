@@ -1,6 +1,7 @@
 #pragma once
 #include "gameplay/Entity.h"
 #include "core/Types.h"
+#include "core/Constants.h"
 #include <functional>
 #include <string>
 
