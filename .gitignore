@@ -60,3 +60,4 @@ vcpkg_installed/
 
 #LLM
 **.claude/
+tmpclaude*

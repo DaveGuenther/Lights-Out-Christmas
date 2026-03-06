@@ -1,4 +1,5 @@
 #include "gameplay/GameWorld.h"
+#include "core/SpriteRegistry.h"
 #include <unordered_map>
 #include "gameplay/threats/Homeowner.h"
 #include "gameplay/threats/Dog.h"
@@ -539,65 +540,39 @@ void GameWorld::renderSnow(SDL_Renderer* renderer) const {
 }
 
 void GameWorld::renderBackground(SDL_Renderer* renderer) const {
-    // Sky gradient: top = very dark blue, bottom = slightly lighter
-    for (int y = 0; y < RENDER_HEIGHT; y += 4) {
-        float t = static_cast<float>(y) / RENDER_HEIGHT;
-        uint8_t r = static_cast<uint8_t>(8  + static_cast<int>(t * 10));
-        uint8_t g = static_cast<uint8_t>(12 + static_cast<int>(t * 8));
-        uint8_t b = static_cast<uint8_t>(35 + static_cast<int>(t * 15));
-        SDL_SetRenderDrawColor(renderer, r, g, b, 255);
-        SDL_RenderDrawLine(renderer, 0, y, RENDER_WIDTH, y);
-        SDL_RenderDrawLine(renderer, 0, y+1, RENDER_WIDTH, y+1);
-        SDL_RenderDrawLine(renderer, 0, y+2, RENDER_WIDTH, y+2);
-        SDL_RenderDrawLine(renderer, 0, y+3, RENDER_WIDTH, y+3);
+    // Sky — tile the 64x30 sky_gradient sprite across the full screen width,
+    // scaled to fill sky height (top of screen to LANE_GROUND_Y).
+    int skyH = static_cast<int>(LANE_GROUND_Y);
+    // sky_gradient is 64 px wide; tile 5 copies across 320 px
+    for (int tx = 0; tx < RENDER_WIDTH; tx += 64) {
+        SpriteRegistry::draw(renderer, "sky_gradient",
+                             static_cast<float>(tx), 0.f,
+                             64.f, static_cast<float>(skyH));
     }
 
-    // Ground strip
-    SDL_SetRenderDrawColor(renderer, 30, 45, 25, 255);
-    SDL_Rect ground = {0, static_cast<int>(LANE_GROUND_Y),
-                       RENDER_WIDTH, RENDER_HEIGHT - static_cast<int>(LANE_GROUND_Y)};
-    SDL_RenderFillRect(renderer, &ground);
-
-    // Snow on ground
-    SDL_SetRenderDrawColor(renderer, 200, 220, 240, 255);
-    SDL_Rect snowGround = {0, static_cast<int>(LANE_GROUND_Y),
-                           RENDER_WIDTH, 4};
-    SDL_RenderFillRect(renderer, &snowGround);
+    // Ground strip — tile the 64x4 ground_strip sprite
+    for (int tx = 0; tx < RENDER_WIDTH; tx += 64) {
+        SpriteRegistry::draw(renderer, "ground_strip",
+                             static_cast<float>(tx), LANE_GROUND_Y,
+                             64.f, static_cast<float>(RENDER_HEIGHT - skyH));
+    }
 }
 
 void GameWorld::renderMoon(SDL_Renderer* renderer) const {
-    // Moon in top-right
-    int mx = RENDER_WIDTH - 30, my = 18;
-    int r = 10;
-    SDL_SetRenderDrawColor(renderer, 240, 240, 220, 255);
-    for (int dy = -r; dy <= r; ++dy) {
-        int dx = static_cast<int>(std::sqrt(static_cast<float>(r*r - dy*dy)));
-        SDL_RenderDrawLine(renderer, mx - dx, my + dy, mx + dx, my + dy);
-    }
-    // Crescent shadow
-    SDL_SetRenderDrawColor(renderer, 10, 15, 40, 255);
-    for (int dy = -r; dy <= r; ++dy) {
-        int dx = static_cast<int>(std::sqrt(static_cast<float>(r*r - dy*dy)));
-        SDL_RenderDrawLine(renderer, mx - dx + 4, my + dy, mx + dx, my + dy);
-    }
+    // moon sprite is 24x24; place in top-right area
+    SpriteRegistry::draw(renderer, "moon",
+                         static_cast<float>(RENDER_WIDTH) - 34.f, 6.f);
 }
 
 void GameWorld::renderStars(SDL_Renderer* renderer) const {
-    // Fixed star positions based on a deterministic seed
-    std::mt19937 starRng(0xDEADBEEF);
-    std::uniform_int_distribution<int> xDist(0, RENDER_WIDTH);
-    std::uniform_int_distribution<int> yDist(0, static_cast<int>(RENDER_HEIGHT * 0.55f));
-    std::uniform_int_distribution<int> brightDist(120, 240);
-
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    for (int i = 0; i < 50; ++i) {
-        int sx = xDist(starRng);
-        int sy = yDist(starRng);
-        uint8_t bright = static_cast<uint8_t>(brightDist(starRng));
-        SDL_SetRenderDrawColor(renderer, bright, bright, bright, bright);
-        SDL_RenderDrawPoint(renderer, sx, sy);
+    // stars_overlay is 64x30 with sparse star pixels.
+    // Draw it tiled across the sky at 50% alpha so the sky shows through.
+    for (int tx = 0; tx < RENDER_WIDTH; tx += 64) {
+        SpriteRegistry::draw(renderer, "stars_overlay",
+                             static_cast<float>(tx), 0.f,
+                             64.f, static_cast<float>(LANE_GROUND_Y),
+                             128);  // semi-transparent overlay
     }
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 }
 
 // ─── Lighting ────────────────────────────────────────────────────────────────

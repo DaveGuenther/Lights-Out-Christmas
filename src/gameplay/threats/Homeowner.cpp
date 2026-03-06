@@ -1,5 +1,6 @@
 #include "gameplay/threats/Homeowner.h"
 #include "core/Constants.h"
+#include "core/SpriteRegistry.h"
 #include <SDL2/SDL.h>
 #include <algorithm>
 
@@ -51,31 +52,48 @@ void Homeowner::update(float dt) {
 void Homeowner::render(SDL_Renderer* renderer, float cameraX) {
     float sx = position.x - cameraX;
 
-    // Body color: grumpy = dark red/brown, dad = blue pajamas
-    Color bodyColor = (m_personality == Personality::GrumpyOldMan)
-                      ? Color{80, 40, 30}
-                      : Color{50, 70, 140};
-
-    drawSimple(renderer, sx, bodyColor);
-
-    // Head
-    SDL_SetRenderDrawColor(renderer, 200, 160, 120, 255);
-    SDL_FRect head = {sx + 2.0f, position.y, 6.0f, 6.0f};
-    SDL_RenderFillRectF(renderer, &head);
-
-    // Angry eyebrow
-    if (m_alerted) {
-        SDL_SetRenderDrawColor(renderer, 60, 20, 10, 255);
-        SDL_RenderDrawLineF(renderer, sx + 3.0f, position.y + 1.5f,
-                                       sx + 5.0f, position.y + 2.5f);
-        SDL_RenderDrawLineF(renderer, sx + 5.0f, position.y + 1.5f,
-                                       sx + 7.0f, position.y + 2.5f);
+    // Pick sprite based on personality and alert state
+    const char* sprite;
+    if (m_personality == Personality::GrumpyOldMan) {
+        if (m_alerted) {
+            Uint32 frame = (SDL_GetTicks() / 220) % 2;
+            sprite = frame ? "homeowner_grumpy_run_1" : "homeowner_grumpy_run_0";
+        } else {
+            sprite = "homeowner_grumpy_idle";
+        }
+    } else {
+        // DadInPajamas
+        if (m_givenUp) {
+            sprite = "homeowner_dad_givingup";
+        } else if (m_alerted) {
+            Uint32 frame = (SDL_GetTicks() / 200) % 2;
+            sprite = frame ? "homeowner_dad_run_1" : "homeowner_dad_run_0";
+        } else {
+            sprite = "homeowner_dad_idle";
+        }
     }
 
-    // Weapon (flashlight or newspaper)
-    SDL_SetRenderDrawColor(renderer, 200, 200, 50, 255);
-    SDL_RenderDrawLineF(renderer, sx + 9.0f, position.y + 6.0f,
-                                   sx + 13.0f, position.y + 4.0f);
+    // Homeowner sprites are 10x18 — draw bottom-aligned to entity bottom
+    uint8_t alpha = (m_frozenTimer > 0.0f) ? 140 : 255;
+    SpriteRegistry::draw(renderer, sprite,
+                         sx, position.y + height - 18.0f,
+                         0.f, 0.f, alpha);
+
+    // Frozen blue tint overlay
+    if (m_frozenTimer > 0.0f) {
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 80, 160, 255, 80);
+        SDL_FRect tint = {sx, position.y, width, height};
+        SDL_RenderFillRectF(renderer, &tint);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+    }
+
+    // Alert exclamation indicator
+    if (m_alerted && !m_givenUp) {
+        SDL_SetRenderDrawColor(renderer, 255, 50, 50, 255);
+        SDL_RenderDrawPointF(renderer, sx + width * 0.5f, position.y - 3.0f);
+        SDL_RenderDrawPointF(renderer, sx + width * 0.5f, position.y - 5.0f);
+    }
 }
 
 }  // namespace LightsOut

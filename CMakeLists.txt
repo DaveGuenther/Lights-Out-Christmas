@@ -130,6 +130,7 @@ set(CORE_SOURCES
     src/core/InputManager.cpp
     src/core/AudioManager.cpp
     src/core/ResourceManager.cpp
+    src/core/SpriteRegistry.cpp
 )
 
 set(GAMEPLAY_SOURCES

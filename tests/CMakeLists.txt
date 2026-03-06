@@ -39,6 +39,8 @@ set(TESTABLE_SOURCES
     ${CMAKE_SOURCE_DIR}/src/gameplay/threats/Owl.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/threats/NeighborhoodWatch.cpp
     ${CMAKE_SOURCE_DIR}/src/gameplay/Player.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/SpriteRegistry.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/ResourceManager.cpp
 )
 
 set(TEST_SOURCES
@@ -63,6 +65,8 @@ target_include_directories(LightsOutTests PRIVATE
 target_link_libraries(LightsOutTests PRIVATE
     Catch2::Catch2WithMain
     SDL2::SDL2
+    SDL2_image::SDL2_image
+    SDL2_ttf::SDL2_ttf
 )
 # SDL2main is not linked here — it hijacks WinMain, which conflicts with
 # Catch2WithMain's own entry point.  The game executable links it separately.

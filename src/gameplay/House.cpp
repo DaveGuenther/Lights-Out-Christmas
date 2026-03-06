@@ -1,5 +1,6 @@
 #include "gameplay/House.h"
 #include "core/Constants.h"
+#include "core/SpriteRegistry.h"
 #include <SDL2/SDL.h>
 #include <random>
 #include <algorithm>
@@ -120,81 +121,68 @@ void House::placePorchLights(int count, float tangledProb) {
 }
 
 void House::drawHouseBody(SDL_Renderer* renderer, float screenX) const {
-    // Wall
-    SDL_SetRenderDrawColor(renderer, wallColor.r, wallColor.g, wallColor.b, 255);
-    SDL_FRect wall = {screenX, position.y + 10.0f, width, height - 10.0f};
-    SDL_RenderFillRectF(renderer, &wall);
+    // Pick wall / roof / door variants from house index for visual variety
+    static const char* wallSprites[] = {"house_wall_a", "house_wall_b", "house_wall_c"};
+    static const char* roofSprites[] = {"house_roof_a", "house_roof_b", "house_roof_c"};
+    static const char* doorSprites[] = {"house_door_a", "house_door_b"};
 
-    // Roof (flat top rect slightly darker)
-    SDL_SetRenderDrawColor(renderer, roofColor.r, roofColor.g, roofColor.b, 255);
-    SDL_FRect roof = {screenX - 2.0f, position.y, width + 4.0f, 14.0f};
-    SDL_RenderFillRectF(renderer, &roof);
+    int wallVar = m_houseIndex % 3;
+    int roofVar = (m_houseIndex / 2) % 3;
+    int doorVar = m_houseIndex % 2;
 
-    // Snow on roof
-    SDL_SetRenderDrawColor(renderer, 220, 235, 255, 200);
-    SDL_FRect snow = {screenX - 2.0f, position.y, width + 4.0f, 4.0f};
-    SDL_RenderFillRectF(renderer, &snow);
+    // Roof (18 px tall, overhangs wall by 2 px each side)
+    float roofW = width + 4.0f;
+    float roofX = screenX - 2.0f;
+    float roofY = position.y;
+    SpriteRegistry::draw(renderer, roofSprites[roofVar], roofX, roofY, roofW, 18.0f);
 
-    // Chimney
-    SDL_SetRenderDrawColor(renderer, roofColor.r + 10, roofColor.g + 10, roofColor.b + 10, 255);
-    SDL_FRect chimney = {screenX + width * 0.75f, position.y - 8.0f, 6.0f, 12.0f};
-    SDL_RenderFillRectF(renderer, &chimney);
+    // Snow cap on top of roof
+    SpriteRegistry::draw(renderer, "house_snow_cap", roofX, roofY - 2.0f, roofW, 6.0f);
 
-    // Windows (2 small yellow squares)
-    SDL_SetRenderDrawColor(renderer, 255, 200, 80, 200);
-    SDL_FRect win1 = {screenX + width * 0.15f, position.y + 20.0f, 8.0f, 8.0f};
-    SDL_FRect win2 = {screenX + width * 0.65f, position.y + 20.0f, 8.0f, 8.0f};
-    SDL_RenderFillRectF(renderer, &win1);
-    SDL_RenderFillRectF(renderer, &win2);
+    // Wall (below roof)
+    float wallY = position.y + 18.0f;
+    float wallH = height - 18.0f;
+    SpriteRegistry::draw(renderer, wallSprites[wallVar], screenX, wallY, width, wallH);
 
-    // Window cross bars
-    SDL_SetRenderDrawColor(renderer, wallColor.r + 20, wallColor.g + 20, wallColor.b + 20, 255);
-    SDL_RenderDrawLineF(renderer, screenX + width * 0.15f + 4.0f, position.y + 20.0f,
-                                  screenX + width * 0.15f + 4.0f, position.y + 28.0f);
-    SDL_RenderDrawLineF(renderer, screenX + width * 0.15f,         position.y + 24.0f,
-                                  screenX + width * 0.15f + 8.0f,  position.y + 24.0f);
+    // Icicles along roofline
+    SpriteRegistry::draw(renderer, "house_icicles", screenX, roofY + 16.0f, width, 6.0f);
 
-    // Door
-    SDL_SetRenderDrawColor(renderer, roofColor.r + 15, roofColor.g, roofColor.b, 255);
-    SDL_FRect door = {screenX + width * 0.42f, position.y + height - 28.0f, 10.0f, 18.0f};
-    SDL_RenderFillRectF(renderer, &door);
+    // Chimney (natural size 8x14)
+    SpriteRegistry::draw(renderer, "house_chimney",
+                         screenX + width * 0.75f, roofY - 10.0f);
 
-    // Door knob
-    SDL_SetRenderDrawColor(renderer, 200, 180, 50, 255);
-    SDL_RenderDrawPointF(renderer, screenX + width * 0.42f + 8.0f, position.y + height - 20.0f);
+    // Windows — lit or dark based on whether porch light (or any light) is on
+    const char* winSprite = m_porchLightOn ? "house_window" : "house_window";
+    SpriteRegistry::draw(renderer, winSprite,
+                         screenX + width * 0.15f, wallY + 4.0f);
+    SpriteRegistry::draw(renderer, winSprite,
+                         screenX + width * 0.60f, wallY + 4.0f);
+
+    // Door (natural size 12x20)
+    SpriteRegistry::draw(renderer, doorSprites[doorVar],
+                         screenX + width * 0.42f, position.y + height - 22.0f);
 }
 
 void House::drawPorchLight(SDL_Renderer* renderer, float screenX) const {
-    Vec2 lp = porchLightPos();
-    float lpx = lp.x - (position.x - screenX) - position.x + screenX;
-    // Simpler: screenX is already offset
-    lpx = screenX + width * 0.15f;
+    float lpx = screenX + width * 0.15f;
     float lpy = HOUSE_GROUND_Y - 15.0f;
 
-    // Fixture
-    SDL_SetRenderDrawColor(renderer, 180, 180, 100, 255);
-    SDL_FRect fixture = {lpx - 1.5f, lpy - 2.0f, 3.0f, 4.0f};
-    SDL_RenderFillRectF(renderer, &fixture);
+    // Porch light sprite (8x10, center-left aligned)
+    const char* lightSprite = m_porchLightOn ? "house_porch_light_on" : "house_porch_light_off";
+    SpriteRegistry::draw(renderer, lightSprite, lpx - 4.0f, lpy - 2.0f);
 
+    // When on, add a soft warm cone below (procedural, dynamic effect)
     if (m_porchLightOn) {
-        // Light cone
-        SDL_SetRenderDrawColor(renderer, 255, 230, 120, 60);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         for (int i = 0; i < 5; ++i) {
-            SDL_FRect cone = {lpx - static_cast<float>(i) * 3.0f,
-                              lpy + static_cast<float>(i) * 4.0f,
-                              static_cast<float>(i) * 6.0f + 2.0f,
-                              4.0f};
+            float fi = static_cast<float>(i);
+            SDL_SetRenderDrawColor(renderer, 255, 230, 120,
+                                   static_cast<uint8_t>(50 - i * 8));
+            SDL_FRect cone = {lpx - fi * 2.5f, lpy + fi * 4.0f,
+                              fi * 5.0f + 3.0f, 4.0f};
             SDL_RenderFillRectF(renderer, &cone);
         }
-        // Bulb glow
-        SDL_SetRenderDrawColor(renderer, 255, 230, 120, 200);
-        SDL_FRect bulb = {lpx - 2.0f, lpy - 1.0f, 4.0f, 4.0f};
-        SDL_RenderFillRectF(renderer, &bulb);
-    } else {
-        // Dim fixture
-        SDL_SetRenderDrawColor(renderer, 80, 80, 50, 180);
-        SDL_FRect bulb = {lpx - 1.0f, lpy, 2.0f, 2.0f};
-        SDL_RenderFillRectF(renderer, &bulb);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }
 }
 

@@ -1,6 +1,7 @@
 #include "gameplay/Player.h"
 #include "gameplay/LightString.h"
 #include "core/Constants.h"
+#include "core/SpriteRegistry.h"
 #include <SDL2/SDL.h>
 #include <cmath>
 #include <algorithm>
@@ -211,63 +212,44 @@ void Player::render(SDL_Renderer* renderer, float /*cameraX*/) {
     renderPowerUpGlow(renderer, screenX);
 }
 
+// Returns the sprite name for the current player state and animation frame.
+// Squirrel sprites face LEFT in the asset sheet; we flip horizontally so the
+// character faces RIGHT (direction of travel, since the world scrolls left).
+static const char* squirrelSpriteName(PlayerState state, int animFrame) {
+    switch (state) {
+    case PlayerState::Dead:    return "squirrel_dead";
+    case PlayerState::Stunned: return "squirrel_stunned";
+    case PlayerState::Biting:  return "squirrel_bite";
+    case PlayerState::Jumping: return "squirrel_jump";
+    default: break;
+    }
+    // Idle / Running / anything else — show run cycle
+    static const char* run[] = {
+        "squirrel_run_0", "squirrel_run_1", "squirrel_run_2", "squirrel_run_3"
+    };
+    return run[animFrame % 4];
+}
+
 void Player::drawSquirrel(SDL_Renderer* renderer, float x, float y, bool shadow) const {
+    const char* spriteName = squirrelSpriteName(m_state, m_animFrame);
+
+    // Determine sprite height to bottom-align over the hitbox
+    // (most squirrel sprites are 24x18; dead=26x12, stunned/jump=24x20)
+    int sw = 0, sh = 0;
+    SpriteRegistry::get(spriteName, &sw, &sh);
+    if (sw == 0) sh = 18;  // fallback
+
+    // Bottom-align sprite to entity bottom (position.y + PLAYER_HEIGHT)
+    // and center horizontally over the hitbox
+    float drawX = x + (PLAYER_WIDTH  - static_cast<float>(sw)) * 0.5f;
+    float drawY = y + PLAYER_HEIGHT - static_cast<float>(sh);
+
     uint8_t alpha = shadow ? 80 : 255;
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
-    Color brown = Color::SquirrelBrown();
-    Color dark  = {80, 45, 10};
-    Color belly = {180, 130, 70};
-
-    // Body
-    SDL_SetRenderDrawColor(renderer, brown.r, brown.g, brown.b, alpha);
-    SDL_FRect body = {x + 1.0f, y + 5.0f, 10.0f, 8.0f};
-    SDL_RenderFillRectF(renderer, &body);
-
-    // Belly patch
-    SDL_SetRenderDrawColor(renderer, belly.r, belly.g, belly.b, alpha);
-    SDL_FRect bellyRect = {x + 3.0f, y + 7.0f, 5.0f, 5.0f};
-    SDL_RenderFillRectF(renderer, &bellyRect);
-
-    // Head
-    SDL_SetRenderDrawColor(renderer, brown.r, brown.g, brown.b, alpha);
-    SDL_FRect head = {x + 5.0f, y + 1.0f, 7.0f, 6.0f};
-    SDL_RenderFillRectF(renderer, &head);
-
-    // Ear
-    SDL_SetRenderDrawColor(renderer, brown.r - 20, brown.g - 10, brown.b, alpha);
-    SDL_FRect ear = {x + 9.0f, y, 3.0f, 3.0f};
-    SDL_RenderFillRectF(renderer, &ear);
-
-    // Eye
-    SDL_SetRenderDrawColor(renderer, 20, 20, 20, alpha);
-    SDL_RenderDrawPointF(renderer, x + 10.0f, y + 3.0f);
-    // Eye shine
-    SDL_SetRenderDrawColor(renderer, 200, 200, 255, alpha);
-    SDL_RenderDrawPointF(renderer, x + 10.0f, y + 2.0f);
-
-    // Nose
-    SDL_SetRenderDrawColor(renderer, dark.r, dark.g, dark.b, alpha);
-    SDL_FRect nose = {x + 11.0f, y + 4.0f, 2.0f, 1.0f};
-    if (m_state == PlayerState::Biting) nose.w = 3.0f;  // open mouth
-    SDL_RenderFillRectF(renderer, &nose);
-
-    // Tail — L-shape above body
-    SDL_SetRenderDrawColor(renderer, brown.r + 20, brown.g + 20, brown.b, alpha);
-    SDL_FRect tail1 = {x, y + 3.0f, 3.0f, 6.0f};
-    SDL_FRect tail2 = {x, y + 3.0f, 6.0f, 3.0f};
-    SDL_RenderFillRectF(renderer, &tail1);
-    SDL_RenderFillRectF(renderer, &tail2);
-
-    // Legs — animate 2 frames
-    SDL_SetRenderDrawColor(renderer, dark.r, dark.g, dark.b, alpha);
-    float legOff = (m_animFrame % 2 == 0) ? 0.0f : 1.5f;
-    SDL_FRect leg1 = {x + 3.0f, y + 12.0f + legOff, 3.0f, 2.0f};
-    SDL_FRect leg2 = {x + 7.0f, y + 12.0f - legOff, 3.0f, 2.0f};
-    SDL_RenderFillRectF(renderer, &leg1);
-    SDL_RenderFillRectF(renderer, &leg2);
-
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+    // Sprites face left in the sheet — flip to face right (direction of travel)
+    SpriteRegistry::draw(renderer, spriteName,
+                         drawX, drawY, 0.f, 0.f,
+                         alpha, SDL_FLIP_HORIZONTAL);
 }
 
 void Player::renderPowerUpGlow(SDL_Renderer* renderer, float screenX) const {

@@ -1,4 +1,5 @@
 #include "core/Game.h"
+#include "core/SpriteRegistry.h"
 #include "ui/MainMenu.h"
 #include "ui/GameScreen.h"
 #include "ui/PauseMenu.h"
@@ -39,6 +40,7 @@ bool Game::init(const char* title) {
 
     if (!m_renderer.init(m_window)) return false;
     if (!m_resources.init(m_renderer.sdl())) return false;
+    SpriteRegistry::init(&m_resources);
     if (!m_input.init()) return false;
     m_audio.init();  // non-fatal if audio fails
 

@@ -11,6 +11,7 @@ enum class LightState { On, Off, Flickering, Sparking };
 struct LightBulb {
     Vec2       position;   // world-space
     Color      color;
+    int        colorIdx = 0;  // 0-6 index into the 7-color palette (used for sprite lookup)
     LightState state = LightState::On;
     float      flickerTimer = 0.0f;
 };

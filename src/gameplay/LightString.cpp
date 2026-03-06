@@ -1,5 +1,6 @@
 #include "gameplay/LightString.h"
 #include "core/Constants.h"
+#include "core/SpriteRegistry.h"
 #include <cmath>
 #include <numbers>
 #include <algorithm>
@@ -9,18 +10,24 @@ namespace LightsOut {
 
 static std::mt19937 s_rng(42);
 
-static Color randomLightColor() {
-    static const Color palette[] = {
-        {220, 60,  60},   // red
-        {60,  200, 60},   // green
-        {60,  100, 220},  // blue
-        {255, 220, 50},   // yellow
-        {240, 240, 240},  // white
-        {200, 80,  200},  // purple
-        {255, 140, 40},   // orange
-    };
+static const Color k_lightPalette[] = {
+    {220, 60,  60},   // 0: red
+    {60,  200, 60},   // 1: green
+    {60,  100, 220},  // 2: blue
+    {255, 220, 50},   // 3: yellow
+    {240, 240, 240},  // 4: white
+    {200, 80,  200},  // 5: purple
+    {255, 140, 40},   // 6: orange
+};
+
+static const char* k_bulbOnSprites[] = {
+    "bulb_red_on", "bulb_green_on", "bulb_blue_on", "bulb_yellow_on",
+    "bulb_white_on", "bulb_purple_on", "bulb_orange_on"
+};
+
+static int randomLightColorIdx() {
     std::uniform_int_distribution<int> dist(0, 6);
-    return palette[dist(s_rng)];
+    return dist(s_rng);
 }
 
 LightString::LightString(float worldX, float worldY, float length,
@@ -42,7 +49,8 @@ LightString::LightString(float worldX, float worldY, float length,
     for (int i = 0; i < count; ++i) {
         LightBulb b;
         b.position = {worldX + static_cast<float>(i) * LIGHT_SPACING, worldY};
-        b.color    = randomLightColor();
+        b.colorIdx = randomLightColorIdx();
+        b.color    = k_lightPalette[b.colorIdx];
         b.state    = LightState::On;
         m_bulbs.push_back(b);
     }
@@ -93,7 +101,7 @@ void LightString::render(SDL_Renderer* renderer, float cameraX) {
         }
     }
 
-    // Draw bulbs
+    // Draw bulbs using sprites
     std::uniform_real_distribution<float> flicker(0.0f, 1.0f);
     for (const auto& b : m_bulbs) {
         if (b.state == LightState::Off) continue;
@@ -102,26 +110,27 @@ void LightString::render(SDL_Renderer* renderer, float cameraX) {
         float sx = b.position.x - cameraX;
         float sy = b.position.y;
 
-        // Glow halo
-        SDL_SetRenderDrawColor(renderer, b.color.r, b.color.g, b.color.b, 60);
-        SDL_FRect glow = {sx - LIGHT_BULB_SIZE, sy - LIGHT_BULB_SIZE,
-                          LIGHT_BULB_SIZE * 2.0f + 1.0f, LIGHT_BULB_SIZE * 2.0f + 1.0f};
+        // Soft glow halo (procedural, color-matched)
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, b.color.r, b.color.g, b.color.b, 45);
+        SDL_FRect glow = {sx - LIGHT_BULB_SIZE * 1.5f, sy - LIGHT_BULB_SIZE * 1.5f,
+                          LIGHT_BULB_SIZE * 3.0f, LIGHT_BULB_SIZE * 3.0f};
         SDL_RenderFillRectF(renderer, &glow);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 
-        // Bulb
-        SDL_SetRenderDrawColor(renderer, b.color.r, b.color.g, b.color.b, 255);
-        SDL_FRect bulb = {sx - LIGHT_BULB_SIZE * 0.5f, sy - LIGHT_BULB_SIZE * 0.5f,
-                          LIGHT_BULB_SIZE, LIGHT_BULB_SIZE};
-        SDL_RenderFillRectF(renderer, &bulb);
+        // Bulb sprite (4x6 pixels drawn centered at bulb position)
+        const char* spriteName = (b.state == LightState::Flickering)
+                                 ? "bulb_flicker"
+                                 : k_bulbOnSprites[b.colorIdx];
+        SpriteRegistry::draw(renderer, spriteName,
+                             sx - 2.0f, sy - 3.0f);  // center 4x6 sprite on bulb pos
     }
 
-    // Tangled indicator — draw a small knot mark if strands need multiple bites
+    // Tangled indicator — wire_knot sprite
     if (m_tangled && m_bitesLanded < m_bitesRequired) {
-        SDL_SetRenderDrawColor(renderer, 180, 100, 40, 200);
         float cx = position.x + width * 0.5f - cameraX;
         float cy = position.y - 3.0f;
-        SDL_FRect knot = {cx - 2.0f, cy - 2.0f, 4.0f, 4.0f};
-        SDL_RenderFillRectF(renderer, &knot);
+        SpriteRegistry::draw(renderer, "wire_knot", cx - 3.0f, cy - 3.0f);
     }
 
     // Render sparks
