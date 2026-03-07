@@ -125,6 +125,8 @@ enum EntityTag : uint32_t {
 enum class Action {
     MoveUp,
     MoveDown,
+    MoveLeft,
+    MoveRight,
     Bite,
     UsePowerUp,
     Pause,

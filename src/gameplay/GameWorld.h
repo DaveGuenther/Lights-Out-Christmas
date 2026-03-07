@@ -30,6 +30,7 @@ public:
     // Input forwarding
     void playerMoveUp();
     void playerMoveDown();
+    void playerMoveHorizontal(float dir, float dt);  // dir: -1=left, +1=right; call held per frame
     void playerBite();
     void playerUsePowerUp();
 

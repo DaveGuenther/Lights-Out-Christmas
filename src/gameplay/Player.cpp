@@ -47,13 +47,19 @@ void Player::moveDown() {
     m_jumpProgress = 0.0f;
 }
 
+void Player::moveHorizontal(float dir, float dt) {
+    if (m_state == PlayerState::Dead) return;
+    m_screenX += dir * PLAYER_HORIZONTAL_SPEED * dt;
+    m_screenX  = std::max(PLAYER_SCREEN_X_MIN, std::min(PLAYER_SCREEN_X_MAX, m_screenX));
+}
+
 void Player::tryBite(const std::vector<std::shared_ptr<LightString>>& nearbyStrings, float cameraX) {
     if (m_state == PlayerState::Dead || m_state == PlayerState::Jumping) return;
     m_state = PlayerState::Biting;
     m_animTimer = 0.0f;
 
     float playerCenterY = position.y + height * 0.5f;
-    float playerScreenX = PLAYER_START_X + width * 0.5f;
+    float playerScreenX = m_screenX + width * 0.5f;
     LightString* closest = nullptr;
     float closestDist    = PLAYER_BITE_RANGE * 2.0f;
 
@@ -158,6 +164,7 @@ void Player::respawn() {
     m_currentLane  = LaneType::Ground;
     m_targetLane   = LaneType::Ground;
     position.y     = laneY(LaneType::Ground) - height * 0.5f;
+    m_screenX      = PLAYER_START_X;
     m_jumpProgress = 0.0f;
 
     // Drop any active power-ups (died, so they're lost)
@@ -183,8 +190,7 @@ float Player::frenzySlowFactor() const {
 }
 
 void Player::render(SDL_Renderer* renderer, float /*cameraX*/) {
-    // Player is always at fixed screen position PLAYER_START_X
-    float screenX = PLAYER_START_X;
+    float screenX = m_screenX;
     float screenY = position.y;
 
     if (isShadowMode()) {

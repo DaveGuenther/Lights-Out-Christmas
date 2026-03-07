@@ -85,6 +85,9 @@ void GameWorld::update(float dt) {
     // Scroll world
     m_cameraX += m_scrollSpeed * dt * frenzy;
 
+    // Keep player's world position in sync with their screen-space X
+    m_player.position.x = m_cameraX + m_player.screenX();
+
     // Generate ahead — keep at least 3 screen-widths of houses in the buffer
     while (m_genHorizon < m_cameraX + RENDER_WIDTH * 3.0f) {
         generateChunk(m_genHorizon);
@@ -94,7 +97,7 @@ void GameWorld::update(float dt) {
     for (auto& h : m_houses)  h->update(dt);
     for (auto& bt : m_bushTrees) bt->update(dt);
 
-    const float playerWorldX = PLAYER_START_X + m_cameraX;
+    const float playerWorldX = m_player.position.x;
     const Vec2  playerWorld  = {playerWorldX, laneY(m_player.currentLane())};
 
     for (auto& t : m_threats) {
@@ -195,7 +198,7 @@ void GameWorld::playerUsePowerUp() {
         float best = 9999.0f;
         Threat* target = nullptr;
         for (auto& t : m_threats) {
-            float dx = t->position.x - (PLAYER_START_X + m_cameraX);
+            float dx = t->position.x - m_player.position.x;
             float dy = t->position.y - m_player.position.y;
             float dist = std::sqrt(dx*dx + dy*dy);
             if (dist < best) { best = dist; target = t.get(); }
@@ -203,22 +206,27 @@ void GameWorld::playerUsePowerUp() {
         if (target) target->freeze(POWERUP_DURATION_ICE);
     } else if (type == PowerUpType::DecoyNut) {
         // Distract all nearby threats toward a position ahead of player
-        Vec2 decoyPos = {PLAYER_START_X + m_cameraX + 40.0f, LANE_GROUND_Y};
+        Vec2 decoyPos = {m_player.position.x + 40.0f, LANE_GROUND_Y};
         for (auto& t : m_threats) {
-            float dx = t->position.x - (PLAYER_START_X + m_cameraX);
+            float dx = t->position.x - m_player.position.x;
             if (std::abs(dx) < 80.0f) t->distract(decoyPos);
         }
     }
     m_heldPowerUp.reset();
 }
 
+void GameWorld::playerMoveHorizontal(float dir, float dt) {
+    if (!m_gameOver) m_player.moveHorizontal(dir, dt);
+}
+
 void GameWorld::respawnPlayer() {
     m_gameOver = false;
     m_player.respawn();
+    m_player.position.x = m_cameraX + m_player.screenX();
 
     // Freeze nearby threats so the player has breathing room
     for (auto& t : m_threats) {
-        float dx = t->position.x - (PLAYER_START_X + m_cameraX);
+        float dx = t->position.x - m_player.position.x;
         if (std::abs(dx) < static_cast<float>(RENDER_WIDTH) * 0.6f)
             t->freeze(PLAYER_RESPAWN_INVINCIBILITY);
     }
