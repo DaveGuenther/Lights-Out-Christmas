@@ -1,5 +1,6 @@
 #include "gameplay/threats/Cat.h"
 #include "core/Constants.h"
+#include "core/SpriteRegistry.h"
 #include <SDL2/SDL.h>
 #include <cmath>
 
@@ -34,32 +35,32 @@ void Cat::update(float dt) {
 void Cat::render(SDL_Renderer* renderer, float cameraX) {
     float sx = position.x - cameraX;
 
-    // Sleek grey body
-    drawSimple(renderer, sx, {100, 100, 110});
+    const char* sprite;
+    if (m_falling) {
+        sprite = "cat_fall";
+    } else if (!m_alerted) {
+        sprite = "cat_stalk";
+    } else {
+        sprite = (static_cast<int>(SDL_GetTicks() / 150) % 2 == 0) ? "cat_run_0" : "cat_run_1";
+    }
 
-    // Head
-    SDL_SetRenderDrawColor(renderer, 120, 120, 130, 255);
-    SDL_FRect head = {sx + 5.0f, position.y - 3.0f, 6.0f, 6.0f};
-    SDL_RenderFillRectF(renderer, &head);
+    uint8_t alpha = (m_frozenTimer > 0.0f) ? 140 : 255;
+    int sw = 0, sh = 0;
+    SpriteRegistry::get(sprite, &sw, &sh);
+    if (sh == 0) sh = static_cast<int>(height);
+    SpriteRegistry::draw(renderer, sprite,
+                         sx - static_cast<float>(sw - (int)width) * 0.5f,
+                         position.y + height - static_cast<float>(sh),
+                         0.f, 0.f, alpha);
 
-    // Ears (triangular hints)
-    SDL_SetRenderDrawColor(renderer, 130, 80, 80, 255);
-    SDL_RenderDrawLineF(renderer, sx + 6.0f,  position.y - 3.0f,
-                                   sx + 7.0f,  position.y - 6.0f);
-    SDL_RenderDrawLineF(renderer, sx + 9.0f,  position.y - 3.0f,
-                                   sx + 10.0f, position.y - 6.0f);
-
-    // Glowing eyes
-    SDL_SetRenderDrawColor(renderer, 80, 200, 80, 255);
-    SDL_RenderDrawPointF(renderer, sx + 7.0f, position.y - 1.0f);
-    SDL_RenderDrawPointF(renderer, sx + 9.0f, position.y - 1.0f);
-
-    // Long tail
-    SDL_SetRenderDrawColor(renderer, 100, 100, 110, 255);
-    SDL_RenderDrawLineF(renderer, sx, position.y + 4.0f,
-                                   sx - 3.0f, position.y - 4.0f);
-    SDL_RenderDrawLineF(renderer, sx - 3.0f, position.y - 4.0f,
-                                   sx - 1.0f, position.y - 7.0f);
+    // Frozen overlay
+    if (m_frozenTimer > 0.0f) {
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 80, 160, 255, 80);
+        SDL_FRect tint = {sx, position.y, width, height};
+        SDL_RenderFillRectF(renderer, &tint);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+    }
 }
 
 }  // namespace LightsOut

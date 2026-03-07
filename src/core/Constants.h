@@ -32,14 +32,19 @@ inline constexpr float LANE_FENCE_Y       = 128.0f;
 inline constexpr float LANE_GROUND_Y      = 160.0f;
 
 // ─── Player ──────────────────────────────────────────────────────────────────
-inline constexpr float PLAYER_START_X     = 50.0f;   // fixed X in render space
-inline constexpr float PLAYER_SPEED       = 0.0f;    // player stays fixed X; world scrolls
+inline constexpr float PLAYER_START_X          = 50.0f;   // default screen X on spawn
+inline constexpr float PLAYER_HORIZONTAL_SPEED = 55.0f;   // px/sec screen-space, left/right move
+inline constexpr float PLAYER_SCREEN_X_MIN     = 20.0f;   // leftmost screen position allowed
+inline constexpr float PLAYER_SCREEN_X_MAX     = 160.0f;  // rightmost screen position allowed
+inline constexpr float PLAYER_SPEED            = 0.0f;    // world scrolls; player moves relative
 inline constexpr float PLAYER_JUMP_SPEED  = 120.0f;  // vertical speed when jumping between lanes
 inline constexpr float PLAYER_WIDTH       = 12.0f;
 inline constexpr float PLAYER_HEIGHT      = 14.0f;
 inline constexpr float PLAYER_BITE_RANGE  = 16.0f;   // horizontal range for biting lights
 inline constexpr int   PLAYER_LIVES       = 3;
-inline constexpr float PLAYER_RESPAWN_INVINCIBILITY = 2.5f;  // invincibility seconds on respawn
+inline constexpr float PLAYER_RESPAWN_INVINCIBILITY = 5.0f;  // invincibility seconds on respawn
+inline constexpr float RESPAWN_THREAT_FREEZE        = 5.0f;  // all threats frozen this long after respawn
+inline constexpr float DEATH_OVERLAY_DURATION       = 2.0f;  // seconds to show death message before respawn
 
 // ─── Scoring ─────────────────────────────────────────────────────────────────
 inline constexpr int POINTS_PER_LIGHT           = 10;

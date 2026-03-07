@@ -10,11 +10,11 @@ namespace LightsOut {
 static LevelConfig buildConfig(int levelIndex) {
     // Must match the configs in GameWorld.cpp exactly.
     static const LevelConfig configs[NUM_LEVELS] = {
-        {"SUBURBAN STREET",   45.0f, 0.30f, 0.40f, false, false, 1, 0.05f, 0.50f, 0.65f, 0.30f},
-        {"RICH NEIGHBORHOOD", 50.0f, 0.45f, 0.30f, false, false, 2, 0.15f, 0.35f, 0.40f, 0.40f},
-        {"THE CUL-DE-SAC",   55.0f, 0.50f, 0.35f, true,  false, 2, 0.20f, 0.20f, 0.25f, 0.45f},
-        {"CHRISTMAS EVE",    60.0f, 0.70f, 0.25f, false, true,  2, 0.30f, 0.10f, 0.10f, 0.25f},
-        {"TOWN SQUARE",      65.0f, 0.80f, 0.20f, true,  true,  3, 0.40f, 0.05f, 0.05f, 0.15f},
+        {"SUBURBAN STREET",   45.0f, 0.15f, 0.40f, false, false, 1, 0.05f, 0.50f, 0.65f, 0.30f},
+        {"RICH NEIGHBORHOOD", 50.0f, 0.22f, 0.30f, false, false, 2, 0.15f, 0.35f, 0.40f, 0.40f},
+        {"THE CUL-DE-SAC",   55.0f, 0.25f, 0.35f, true,  false, 2, 0.20f, 0.20f, 0.25f, 0.45f},
+        {"CHRISTMAS EVE",    60.0f, 0.35f, 0.25f, false, true,  2, 0.30f, 0.10f, 0.10f, 0.25f},
+        {"TOWN SQUARE",      65.0f, 0.40f, 0.20f, true,  true,  3, 0.40f, 0.05f, 0.05f, 0.15f},
     };
     int i = std::max(0, std::min(levelIndex, NUM_LEVELS - 1));
     return configs[i];
@@ -27,6 +27,10 @@ GameScreen::GameScreen(Game& game)
     m_world.onGameOver = [this]() { onGameOver(); };
     m_world.onLevelComplete = [this]() { onLevelComplete(); };
     m_world.onScorePopup = [this](int pts, Vec2 wpos) { onScorePopup(pts, wpos); };
+    m_world.onPowerUpCollect = [this](PowerUpType t) {
+        m_powerUpNotifType  = t;
+        m_powerUpNotifTimer = POWERUP_NOTIF_DURATION;
+    };
 
     m_game.audio().playMusic(
         static_cast<Music>(static_cast<int>(Music::Level1) + m_game.currentLevel()),
@@ -48,6 +52,32 @@ void GameScreen::handleInput() {
 }
 
 void GameScreen::update(float dt) {
+    // Death overlay countdown — world stays frozen during this
+    if (m_deathOverlayTimer > 0.0f) {
+        m_deathOverlayTimer -= dt;
+        if (m_deathOverlayTimer <= 0.0f) {
+            m_deathOverlayTimer = 0.0f;
+            if (m_pendingRespawn) {
+                m_pendingRespawn = false;
+                m_world.respawnPlayer();
+            } else {
+                m_game.resetLives();
+                m_game.audio().stopMusic();
+                m_game.audio().playSfx(SoundEffect::GameOver);
+                m_game.addScore(m_world.scoreSystem().levelScore());
+                m_game.replaceState(GameState::GameOver);
+            }
+        }
+        return;
+    }
+
+    // Horizontal movement is held-input, so we sample it here where dt is available
+    auto& input = m_game.input();
+    float hdir = 0.0f;
+    if (input.isActionDown(Action::MoveLeft))  hdir -= 1.0f;
+    if (input.isActionDown(Action::MoveRight)) hdir += 1.0f;
+    if (hdir != 0.0f) m_world.playerMoveHorizontal(hdir, dt);
+
     m_world.update(dt);
     m_particles.setCameraX(m_world.scrollX());
     m_particles.update(dt);
@@ -65,6 +95,7 @@ void GameScreen::update(float dt) {
     m_lastComboCount = combo;
     if (m_comboFlashTimer > 0.0f) m_comboFlashTimer -= dt;
     if (m_darknessFlash > 0.0f) m_darknessFlash -= dt;
+    if (m_powerUpNotifTimer > 0.0f) m_powerUpNotifTimer -= dt;
 }
 
 void GameScreen::render() {
@@ -72,11 +103,13 @@ void GameScreen::render() {
     m_world.render(r);
     m_particles.render(r);
     drawHUD(r);
+    if (m_deathOverlayTimer > 0.0f) drawDeathOverlay(r);
 }
 
 void GameScreen::drawHUD(SDL_Renderer* r) const {
     drawScoreHUD(r);
     drawDarknessMeter(r);
+    drawPowerUpHUD(r);
     drawComboFlash(r);
     drawLaneIndicator(r);
     drawLivesHUD(r);
@@ -129,6 +162,50 @@ void GameScreen::drawDarknessMeter(SDL_Renderer* r) const {
 
     // Label
     m_game.renderer().drawText("DARK", {2.0f, barY - 6.0f}, {120, 120, 140});
+}
+
+void GameScreen::drawPowerUpHUD(SDL_Renderer* r) const {
+    if (m_powerUpNotifTimer <= 0.0f) return;
+
+    // Fade in fast, fade out in the last second
+    float alpha = (m_powerUpNotifTimer < 1.0f)
+                  ? m_powerUpNotifTimer          // fade out
+                  : std::min(1.0f, (POWERUP_NOTIF_DURATION - m_powerUpNotifTimer) * 6.0f); // fade in
+    uint8_t a = static_cast<uint8_t>(alpha * 230.0f);
+
+    // Per-type name, description, and colour
+    struct NotifInfo { const char* name; const char* desc; Color col; };
+    static const NotifInfo info[] = {
+        {"ACORN STASH",  "SPEED BOOST",           {255, 200,  50}},  // AcornStash
+        {"WINTER COAT",  "INVINCIBILITY",          {100, 180, 255}},  // WinterCoat
+        {"SHADOW MODE",  "INVISIBLE TO THREATS",   {140,  80, 220}},  // ShadowMode
+        {"SUPER CHOMP",  "ONE-BITE POWER",         {255, 100,  40}},  // SuperChomp
+        {"DECOY NUT",    "THREATS DISTRACTED",     {200, 160,  60}},  // DecoyNut
+        {"ICE PATCH",    "CLOSEST THREAT FROZEN",  { 80, 220, 255}},  // IcePatch
+        {"DOUBLE TAIL",  "GHOST SQUIRREL DECOY",   {200,  80, 255}},  // DoubleTail
+        {"FRENZY MODE",  "SLOW-MOTION FRENZY",     {255,  60, 200}},  // FrenzyMode
+    };
+    int idx = static_cast<int>(m_powerUpNotifType);
+    if (idx < 0 || idx >= static_cast<int>(std::size(info))) return;
+    const auto& n = info[idx];
+
+    auto& renderer = m_game.renderer();
+    float cx = RENDER_WIDTH * 0.5f;
+    float cy = RENDER_HEIGHT * 0.28f;
+
+    // Dim background pill
+    SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(r, 0, 0, 0, static_cast<uint8_t>(alpha * 140.0f));
+    SDL_FRect bg = {cx - 52.0f, cy - 5.0f, 104.0f, 18.0f};
+    SDL_RenderFillRectF(r, &bg);
+    SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
+
+    // Power-up name (coloured)
+    renderer.drawText(n.name, {cx, cy},
+                      {n.col.r, n.col.g, n.col.b, a}, 8, true);
+    // Effect description (white, smaller offset below)
+    renderer.drawText(n.desc, {cx, cy + 8.0f},
+                      {220, 220, 220, a}, 8, true);
 }
 
 void GameScreen::drawComboFlash(SDL_Renderer* r) const {
@@ -188,7 +265,7 @@ void GameScreen::onLevelComplete() {
     m_game.nextLevel();
 
     if (m_game.currentLevel() >= NUM_LEVELS) {
-        m_game.replaceState(GameState::GameOver);
+        m_game.replaceState(GameState::TownSquareBoss);
     } else {
         m_game.replaceState(GameState::Upgrade);
     }
@@ -221,17 +298,38 @@ void GameScreen::drawLivesHUD(SDL_Renderer* r) const {
 }
 
 void GameScreen::onGameOver() {
-    if (m_game.lives() > 0) {
-        m_game.decrementLives();
-        m_world.respawnPlayer();
-        return;  // continue playing with remaining lives
+    m_game.decrementLives();
+    m_pendingRespawn    = (m_game.lives() > 0);
+    m_deathOverlayTimer = DEATH_OVERLAY_DURATION;
+    // actual respawn / game-over fires when timer expires in update()
+}
+
+void GameScreen::drawDeathOverlay(SDL_Renderer* r) const {
+    float progress = 1.0f - (m_deathOverlayTimer / DEATH_OVERLAY_DURATION);
+    uint8_t alpha = static_cast<uint8_t>(std::min(1.0f, progress * 2.0f) * 200.0f);
+
+    SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(r, 0, 0, 0, alpha);
+    SDL_FRect full = {0.0f, 0.0f, static_cast<float>(RENDER_WIDTH), static_cast<float>(RENDER_HEIGHT)};
+    SDL_RenderFillRectF(r, &full);
+    SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
+
+    if (progress > 0.4f) {
+        m_game.renderer().drawText("WIPEOUT!",
+            {RENDER_WIDTH * 0.5f, RENDER_HEIGHT * 0.40f},
+            {255, 80, 80}, 12, true);
+
+        if (m_pendingRespawn) {
+            std::string livesStr = std::to_string(m_game.lives()) + " LIVES LEFT";
+            m_game.renderer().drawText(livesStr,
+                {RENDER_WIDTH * 0.5f, RENDER_HEIGHT * 0.55f},
+                {200, 200, 200}, 8, true);
+        } else {
+            m_game.renderer().drawText("GAME OVER",
+                {RENDER_WIDTH * 0.5f, RENDER_HEIGHT * 0.55f},
+                {200, 80, 80}, 8, true);
+        }
     }
-    // All lives exhausted — real game over
-    m_game.resetLives();
-    m_game.audio().stopMusic();
-    m_game.audio().playSfx(SoundEffect::GameOver);
-    m_game.addScore(m_world.scoreSystem().levelScore());
-    m_game.replaceState(GameState::GameOver);
 }
 
 }  // namespace LightsOut

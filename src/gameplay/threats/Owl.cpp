@@ -1,5 +1,6 @@
 #include "gameplay/threats/Owl.h"
 #include "core/Constants.h"
+#include "core/SpriteRegistry.h"
 #include <SDL2/SDL.h>
 #include <cmath>
 
@@ -42,53 +43,32 @@ void Owl::update(float dt) {
 void Owl::render(SDL_Renderer* renderer, float cameraX) {
     float sx = position.x - cameraX;
 
-    // Body
-    SDL_SetRenderDrawColor(renderer, 80, 70, 50, 255);
-    SDL_FRect body = {sx, position.y + 4.0f, width, height - 4.0f};
-    SDL_RenderFillRectF(renderer, &body);
-
-    // Head (round)
-    SDL_SetRenderDrawColor(renderer, 100, 90, 60, 255);
-    SDL_FRect head = {sx + 2.0f, position.y, 8.0f, 8.0f};
-    SDL_RenderFillRectF(renderer, &head);
-
-    // Eyes
-    SDL_SetRenderDrawColor(renderer, 240, 200, 50, 255);
-    SDL_FRect eye1 = {sx + 3.0f, position.y + 1.5f, 2.5f, 2.5f};
-    SDL_FRect eye2 = {sx + 6.0f, position.y + 1.5f, 2.5f, 2.5f};
-    SDL_RenderFillRectF(renderer, &eye1);
-    SDL_RenderFillRectF(renderer, &eye2);
-
-    // Pupils
-    SDL_SetRenderDrawColor(renderer, 10, 10, 10, 255);
-    SDL_RenderDrawPointF(renderer, sx + 4.0f, position.y + 2.5f);
-    SDL_RenderDrawPointF(renderer, sx + 7.0f, position.y + 2.5f);
-
-    // Beak
-    SDL_SetRenderDrawColor(renderer, 180, 140, 50, 255);
-    SDL_RenderDrawLineF(renderer, sx + 5.5f, position.y + 4.0f,
-                                   sx + 4.0f, position.y + 6.0f);
-    SDL_RenderDrawLineF(renderer, sx + 5.5f, position.y + 4.0f,
-                                   sx + 7.0f, position.y + 6.0f);
-
-    // Wings when attacking
-    if (m_attacking) {
-        SDL_SetRenderDrawColor(renderer, 70, 60, 40, 200);
-        SDL_RenderDrawLineF(renderer, sx, position.y + 6.0f, sx - 6.0f, position.y + 2.0f);
-        SDL_RenderDrawLineF(renderer, sx + width, position.y + 6.0f,
-                                       sx + width + 6.0f, position.y + 2.0f);
+    const char* sprite;
+    if (m_falling) {
+        sprite = "owl_fall";
+    } else if (m_attacking) {
+        sprite = (static_cast<int>(SDL_GetTicks() / 120) % 2 == 0) ? "owl_dive_0" : "owl_dive_1";
+    } else if (m_playerPresent) {
+        sprite = "owl_watch";
+    } else {
+        sprite = "owl_perch";
     }
 
-    // Patience warning — red eyes when about to attack
-    if (m_playerPresent && !m_attacking &&
-        m_patienceTimer > OWL_PATIENCE_SECONDS * 0.6f) {
-        float t = (m_patienceTimer - OWL_PATIENCE_SECONDS * 0.6f) /
-                  (OWL_PATIENCE_SECONDS * 0.4f);
-        uint8_t r = static_cast<uint8_t>(240.0f * t);
+    uint8_t alpha = (m_frozenTimer > 0.0f) ? 140 : 255;
+    int sw = 0, sh = 0;
+    SpriteRegistry::get(sprite, &sw, &sh);
+    if (sh == 0) sh = static_cast<int>(height);
+    SpriteRegistry::draw(renderer, sprite,
+                         sx - static_cast<float>(sw - (int)width) * 0.5f,
+                         position.y + height - static_cast<float>(sh),
+                         0.f, 0.f, alpha);
+
+    // Frozen overlay
+    if (m_frozenTimer > 0.0f) {
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, r, 30, 30, 150);
-        SDL_RenderFillRectF(renderer, &eye1);
-        SDL_RenderFillRectF(renderer, &eye2);
+        SDL_SetRenderDrawColor(renderer, 80, 160, 255, 80);
+        SDL_FRect tint = {sx, position.y, width, height};
+        SDL_RenderFillRectF(renderer, &tint);
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }
 }

@@ -1,5 +1,6 @@
 #include "gameplay/BushTree.h"
 #include "core/Constants.h"
+#include "core/SpriteRegistry.h"
 #include <SDL2/SDL.h>
 #include <random>
 
@@ -45,48 +46,13 @@ void BushTree::render(SDL_Renderer* renderer, float cameraX) {
 }
 
 void BushTree::drawBush(SDL_Renderer* renderer, float sx) const {
-    // Three overlapping dark-green rounded blobs
-    SDL_SetRenderDrawColor(renderer, 25, 70, 25, 255);
-    SDL_FRect b1 = {sx,          position.y + 4.0f, 12.0f, 10.0f};
-    SDL_FRect b2 = {sx + 7.0f,  position.y + 2.0f, 12.0f, 10.0f};
-    SDL_FRect b3 = {sx + 3.0f,  position.y,         14.0f,  9.0f};
-    SDL_RenderFillRectF(renderer, &b1);
-    SDL_RenderFillRectF(renderer, &b2);
-    SDL_RenderFillRectF(renderer, &b3);
-    // Snow dusting
-    SDL_SetRenderDrawColor(renderer, 210, 230, 255, 180);
-    SDL_FRect snow = {sx + 2.0f, position.y, 18.0f, 3.0f};
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    SDL_RenderFillRectF(renderer, &snow);
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+    // Alternate between two bush sprites for visual variety
+    const char* sprite = (m_idx % 2 == 0) ? "bush_a" : "bush_b";
+    SpriteRegistry::draw(renderer, sprite, sx, position.y, width, height);
 }
 
 void BushTree::drawPineTree(SDL_Renderer* renderer, float sx) const {
-    // Three triangular tiers from bottom to top
-    SDL_SetRenderDrawColor(renderer, 20, 80, 30, 255);
-    // Bottom tier (widest)
-    SDL_FRect t1 = {sx,         position.y + 16.0f, 18.0f, 8.0f};
-    // Middle tier
-    SDL_FRect t2 = {sx + 3.0f,  position.y + 9.0f,  12.0f, 9.0f};
-    // Top tier
-    SDL_FRect t3 = {sx + 6.0f,  position.y + 2.0f,   6.0f, 9.0f};
-    SDL_RenderFillRectF(renderer, &t1);
-    SDL_RenderFillRectF(renderer, &t2);
-    SDL_RenderFillRectF(renderer, &t3);
-    // Trunk
-    SDL_SetRenderDrawColor(renderer, 80, 50, 20, 255);
-    SDL_FRect trunk = {sx + 7.0f, position.y + 22.0f, 4.0f, 2.0f};
-    SDL_RenderFillRectF(renderer, &trunk);
-    // Snow on tiers
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(renderer, 210, 230, 255, 160);
-    SDL_FRect s1 = {sx,         position.y + 16.0f, 18.0f, 2.0f};
-    SDL_FRect s2 = {sx + 3.0f,  position.y + 9.0f,  12.0f, 2.0f};
-    SDL_FRect s3 = {sx + 6.0f,  position.y + 2.0f,   6.0f, 2.0f};
-    SDL_RenderFillRectF(renderer, &s1);
-    SDL_RenderFillRectF(renderer, &s2);
-    SDL_RenderFillRectF(renderer, &s3);
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+    SpriteRegistry::draw(renderer, "pine_small", sx, position.y, width, height);
 }
 
 }  // namespace LightsOut

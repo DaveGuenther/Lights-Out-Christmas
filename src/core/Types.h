@@ -77,7 +77,9 @@ enum class GameState {
     Paused,
     GameOver,
     Upgrade,
-    Leaderboard
+    Leaderboard,
+    TownSquareBoss,  // final boss: demolish the town tree
+    YouWin           // victory screen
 };
 
 // ─── Lane types ──────────────────────────────────────────────────────────────
@@ -125,6 +127,8 @@ enum EntityTag : uint32_t {
 enum class Action {
     MoveUp,
     MoveDown,
+    MoveLeft,
+    MoveRight,
     Bite,
     UsePowerUp,
     Pause,

@@ -53,15 +53,14 @@ void InputManager::handleEvent(const SDL_Event& event) {
         break;
     }
     case SDL_CONTROLLERAXISMOTION: {
-        Action a;
         auto axis  = static_cast<SDL_GameControllerAxis>(event.caxis.axis);
         Sint16 val = event.caxis.value;
-        if (gamepadAxisToAction(axis, val, a)) {
-            // Axis past threshold → press; inside deadzone → release
-            bool pressed = (axis == SDL_CONTROLLER_AXIS_LEFTY)
-                ? (std::abs(val) > 8000)
-                : (std::abs(val) > 8000);
-            setAction(a, pressed);
+        if (axis == SDL_CONTROLLER_AXIS_LEFTY) {
+            setAction(Action::MoveUp,    val < -8000);
+            setAction(Action::MoveDown,  val >  8000);
+        } else if (axis == SDL_CONTROLLER_AXIS_LEFTX) {
+            setAction(Action::MoveLeft,  val < -8000);
+            setAction(Action::MoveRight, val >  8000);
         }
         break;
     }
@@ -115,6 +114,12 @@ bool InputManager::scancodeToAction(SDL_Scancode sc, Action& out) const {
     case SDL_SCANCODE_S:
     case SDL_SCANCODE_DOWN:
         out = Action::MoveDown;  return true;
+    case SDL_SCANCODE_A:
+    case SDL_SCANCODE_LEFT:
+        out = Action::MoveLeft;  return true;
+    case SDL_SCANCODE_D:
+    case SDL_SCANCODE_RIGHT:
+        out = Action::MoveRight; return true;
     case SDL_SCANCODE_SPACE:
     case SDL_SCANCODE_Z:
         out = Action::Bite;      return true;
@@ -138,6 +143,10 @@ bool InputManager::gamepadButtonToAction(SDL_GameControllerButton btn, Action& o
         out = Action::MoveUp;      return true;
     case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
         out = Action::MoveDown;    return true;
+    case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+        out = Action::MoveLeft;    return true;
+    case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+        out = Action::MoveRight;   return true;
     case SDL_CONTROLLER_BUTTON_A:
         out = Action::Bite;        return true;
     case SDL_CONTROLLER_BUTTON_B:
@@ -151,11 +160,8 @@ bool InputManager::gamepadButtonToAction(SDL_GameControllerButton btn, Action& o
     }
 }
 
-bool InputManager::gamepadAxisToAction(SDL_GameControllerAxis axis, Sint16 value, Action& out) const {
-    if (axis == SDL_CONTROLLER_AXIS_LEFTY) {
-        if (value < -8000) { out = Action::MoveUp;   return true; }
-        if (value >  8000) { out = Action::MoveDown; return true; }
-    }
+bool InputManager::gamepadAxisToAction(SDL_GameControllerAxis /*axis*/, Sint16 /*value*/, Action& /*out*/) const {
+    // Axis-to-action is handled inline in handleEvent to support proper release.
     return false;
 }
 

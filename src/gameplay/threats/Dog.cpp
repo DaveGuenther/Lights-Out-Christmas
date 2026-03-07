@@ -1,5 +1,6 @@
 #include "gameplay/threats/Dog.h"
 #include "core/Constants.h"
+#include "core/SpriteRegistry.h"
 #include <SDL2/SDL.h>
 #include <cmath>
 
@@ -65,36 +66,41 @@ void Dog::update(float dt) {
 void Dog::render(SDL_Renderer* renderer, float cameraX) {
     float sx = position.x - cameraX;
 
-    // Chain
+    // Chain from anchor to dog
     float asx = m_anchorPos.x - cameraX;
     SDL_SetRenderDrawColor(renderer, 120, 100, 60, 180);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     SDL_RenderDrawLineF(renderer, asx, LANE_GROUND_Y - 2.0f, sx + 5.0f, position.y + 4.0f);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 
-    // Body
-    drawSimple(renderer, sx, {140, 90, 40});
-
-    // Head (slightly in front)
-    SDL_SetRenderDrawColor(renderer, 160, 100, 50, 255);
-    SDL_FRect head = {sx + 7.0f, position.y - 2.0f, 6.0f, 6.0f};
-    SDL_RenderFillRectF(renderer, &head);
-
-    // Nose
-    SDL_SetRenderDrawColor(renderer, 40, 25, 20, 255);
-    SDL_FRect nose = {sx + 12.0f, position.y + 1.0f, 2.0f, 2.0f};
-    SDL_RenderFillRectF(renderer, &nose);
-
-    // Bark indicator
-    if (m_barking && static_cast<int>(m_barkTimer * 4.0f) % 2 == 0) {
-        SDL_SetRenderDrawColor(renderer, 255, 220, 100, 200);
-        SDL_RenderDrawLineF(renderer, sx + 13.0f, position.y - 1.0f,
-                                       sx + 16.0f, position.y - 4.0f);
-        SDL_RenderDrawLineF(renderer, sx + 14.0f, position.y + 1.0f,
-                                       sx + 17.0f, position.y - 2.0f);
+    // Pick sprite: barking when alerted, chase when moving, idle otherwise
+    const char* sprite;
+    if (m_barking) {
+        sprite = (static_cast<int>(m_barkTimer * 4.0f) % 2 == 0) ? "dog_bark_0" : "dog_bark_1";
+    } else if (m_alerted) {
+        sprite = "dog_chase";
+    } else {
+        sprite = "dog_idle";
     }
 
-    // Tail
-    SDL_SetRenderDrawColor(renderer, 140, 90, 40, 255);
-    SDL_RenderDrawLineF(renderer, sx, position.y + 2.0f, sx - 4.0f, position.y - 2.0f);
+    uint8_t alpha = (m_frozenTimer > 0.0f) ? 140 : 255;
+    // dog sprites are 16-18 x 10-12; draw bottom-aligned
+    int sw = 0, sh = 0;
+    SpriteRegistry::get(sprite, &sw, &sh);
+    if (sh == 0) sh = 10;
+    SpriteRegistry::draw(renderer, sprite,
+                         sx - static_cast<float>(sw - (int)width) * 0.5f,
+                         position.y + height - static_cast<float>(sh),
+                         0.f, 0.f, alpha);
+
+    // Frozen overlay
+    if (m_frozenTimer > 0.0f) {
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 80, 160, 255, 80);
+        SDL_FRect tint = {sx, position.y, width, height};
+        SDL_RenderFillRectF(renderer, &tint);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+    }
 }
 
 }  // namespace LightsOut

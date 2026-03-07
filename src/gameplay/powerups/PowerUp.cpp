@@ -1,4 +1,5 @@
 #include "gameplay/powerups/PowerUp.h"
+#include "core/SpriteRegistry.h"
 #include <SDL2/SDL.h>
 #include <cmath>
 
@@ -20,30 +21,36 @@ void PowerUp::update(float dt) {
     position.y += std::sin(m_bobTimer * 4.0f) * 0.3f;
 }
 
+static const char* powerUpSpriteName(PowerUpType type) {
+    switch (type) {
+        case PowerUpType::AcornStash:  return "powerup_acorn";
+        case PowerUpType::WinterCoat:  return "powerup_coat";
+        case PowerUpType::ShadowMode:  return "powerup_shadow";
+        case PowerUpType::SuperChomp:  return "powerup_chomp";
+        case PowerUpType::DecoyNut:    return "powerup_decoy";
+        case PowerUpType::IcePatch:    return "powerup_ice";
+        case PowerUpType::DoubleTail:  return "powerup_doubletail";
+        case PowerUpType::FrenzyMode:  return "powerup_frenzy";
+        default:                       return "powerup_acorn";
+    }
+}
+
 void PowerUp::render(SDL_Renderer* renderer, float cameraX) {
     if (m_collected) return;
     float sx = position.x - cameraX;
 
-    // Draw a small pulsing gem
     float pulse = 0.8f + 0.2f * std::sin(m_bobTimer * 6.0f);
-    uint8_t alpha = static_cast<uint8_t>(200 * pulse);
+    uint8_t alpha = static_cast<uint8_t>(220 * pulse);
 
-    // Glow
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(renderer, m_color.r, m_color.g, m_color.b, alpha / 3);
-    SDL_FRect glow = {sx - 3.0f, position.y - 3.0f, width + 6.0f, height + 6.0f};
-    SDL_RenderFillRectF(renderer, &glow);
+    // Glow halo behind sprite
+    SpriteRegistry::draw(renderer, "powerup_glow",
+                         sx - 3.0f, position.y - 3.0f,
+                         width + 6.0f, height + 6.0f,
+                         static_cast<uint8_t>(alpha / 3));
 
-    // Core
-    SDL_SetRenderDrawColor(renderer, m_color.r, m_color.g, m_color.b, alpha);
-    SDL_FRect core = {sx, position.y, width, height};
-    SDL_RenderFillRectF(renderer, &core);
-
-    // Sparkle
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, alpha);
-    SDL_RenderDrawPointF(renderer, sx + 2.0f, position.y + 2.0f);
-
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+    // Powerup sprite
+    SpriteRegistry::draw(renderer, powerUpSpriteName(m_type),
+                         sx, position.y, 0.f, 0.f, alpha);
 }
 
 }  // namespace LightsOut

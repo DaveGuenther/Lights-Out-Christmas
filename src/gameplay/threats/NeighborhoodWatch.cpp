@@ -1,5 +1,6 @@
 #include "gameplay/threats/NeighborhoodWatch.h"
 #include "core/Constants.h"
+#include "core/SpriteRegistry.h"
 #include "gameplay/Collision.h"
 #include <SDL2/SDL.h>
 
@@ -38,50 +39,33 @@ bool NeighborhoodWatch::detectsGroundPlayer(const Rect& playerBounds) const {
 void NeighborhoodWatch::render(SDL_Renderer* renderer, float cameraX) {
     float sx = position.x - cameraX;
 
-    // Car body
-    SDL_SetRenderDrawColor(renderer, 30, 30, 80, 255);
-    SDL_FRect body = {sx, position.y + 4.0f, width, height - 4.0f};
-    SDL_RenderFillRectF(renderer, &body);
+    // Car body sprite (bottom-aligned)
+    uint8_t alpha = (m_frozenTimer > 0.0f) ? 140 : 255;
+    int sw = 0, sh = 0;
+    SpriteRegistry::get("watchcar_body", &sw, &sh);
+    if (sh == 0) sh = static_cast<int>(height);
+    float drawX = sx - static_cast<float>(sw - (int)width) * 0.5f;
+    float drawY = position.y + height - static_cast<float>(sh);
+    SpriteRegistry::draw(renderer, "watchcar_body", drawX, drawY, 0.f, 0.f, alpha);
 
-    // Roof
-    SDL_FRect roof = {sx + 4.0f, position.y, width - 8.0f, 6.0f};
-    SDL_RenderFillRectF(renderer, &roof);
+    // Flashing roof lights (red/blue alternating)
+    bool redPhase = (SDL_GetTicks() / 300) % 2 == 0;
+    const char* lightSprite = redPhase ? "watchcar_lights_red" : "watchcar_lights_blue";
+    SpriteRegistry::draw(renderer, lightSprite, drawX, drawY, 0.f, 0.f, alpha);
 
-    // Windows
-    SDL_SetRenderDrawColor(renderer, 100, 140, 180, 200);
-    SDL_FRect win = {sx + 5.0f, position.y + 1.0f, width - 10.0f, 4.0f};
-    SDL_RenderFillRectF(renderer, &win);
+    // Spotlight ahead of car
+    SpriteRegistry::draw(renderer, "watchcar_spotlight",
+                         sx + width, position.y + height - 8.0f,
+                         0.f, 0.f, 100);
 
-    // Wheels
-    SDL_SetRenderDrawColor(renderer, 30, 30, 30, 255);
-    SDL_FRect wheel1 = {sx + 2.0f, position.y + height - 4.0f, 5.0f, 4.0f};
-    SDL_FRect wheel2 = {sx + width - 7.0f, position.y + height - 4.0f, 5.0f, 4.0f};
-    SDL_RenderFillRectF(renderer, &wheel1);
-    SDL_RenderFillRectF(renderer, &wheel2);
-
-    // Roof lights (flashing red/blue)
-    Uint32 ticks = SDL_GetTicks();
-    bool  redPhase = (ticks / 300) % 2 == 0;
-    SDL_SetRenderDrawColor(renderer,
-        redPhase ? 255 : 50,
-        30,
-        redPhase ? 50 : 255, 220);
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    SDL_FRect light = {sx + 9.0f, position.y - 2.0f, 6.0f, 3.0f};
-    SDL_RenderFillRectF(renderer, &light);
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-
-    // Spotlight cone ahead of car
-    SDL_SetRenderDrawColor(renderer, 255, 255, 180, 40);
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    for (int i = 0; i < static_cast<int>(SPOTLIGHT_WIDTH); i += 3) {
-        float alpha = 40.0f * (1.0f - static_cast<float>(i) / SPOTLIGHT_WIDTH);
-        SDL_SetRenderDrawColor(renderer, 255, 255, 180, static_cast<uint8_t>(alpha));
-        SDL_RenderDrawLineF(renderer,
-            sx + width, position.y + height - 6.0f,
-            sx + width + i, LANE_GROUND_Y);
+    // Frozen overlay
+    if (m_frozenTimer > 0.0f) {
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 80, 160, 255, 80);
+        SDL_FRect tint = {sx, position.y, width, height};
+        SDL_RenderFillRectF(renderer, &tint);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 }
 
 }  // namespace LightsOut

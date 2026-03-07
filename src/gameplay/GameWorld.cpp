@@ -1,4 +1,5 @@
 #include "gameplay/GameWorld.h"
+#include "core/SpriteRegistry.h"
 #include <unordered_map>
 #include "gameplay/threats/Homeowner.h"
 #include "gameplay/threats/Dog.h"
@@ -30,15 +31,15 @@ static LevelConfig getLevelConfig(int index) {
     // (hard fraction = 1 - easy - medium, for lit houses only)
     static const LevelConfig configs[NUM_LEVELS] = {
         // 0: Suburban Street — easy: mostly 1-tier, a few 2-tier, rarely 3-tier
-        {"SUBURBAN STREET",   45.0f, 0.30f, 0.40f, false, false, 1, 0.05f, 0.50f, 0.65f, 0.30f},
+        {"SUBURBAN STREET",   45.0f, 0.15f, 0.40f, false, false, 1, 0.05f, 0.50f, 0.65f, 0.30f},
         // 1: Rich Neighborhood — moderate mix
-        {"RICH NEIGHBORHOOD", 50.0f, 0.45f, 0.30f, false, false, 2, 0.15f, 0.35f, 0.40f, 0.40f},
+        {"RICH NEIGHBORHOOD", 50.0f, 0.22f, 0.30f, false, false, 2, 0.15f, 0.35f, 0.40f, 0.40f},
         // 2: The Cul-De-Sac — medium-hard
-        {"THE CUL-DE-SAC",   55.0f, 0.50f, 0.35f, true,  false, 2, 0.20f, 0.20f, 0.25f, 0.45f},
+        {"THE CUL-DE-SAC",   55.0f, 0.25f, 0.35f, true,  false, 2, 0.20f, 0.20f, 0.25f, 0.45f},
         // 3: Christmas Eve — hard: mostly 3-tier
-        {"CHRISTMAS EVE",    60.0f, 0.70f, 0.25f, false, true,  2, 0.30f, 0.10f, 0.10f, 0.25f},
+        {"CHRISTMAS EVE",    60.0f, 0.35f, 0.25f, false, true,  2, 0.30f, 0.10f, 0.10f, 0.25f},
         // 4: The Town Square — hardest: almost all 3-tier
-        {"TOWN SQUARE",      65.0f, 0.80f, 0.20f, true,  true,  3, 0.40f, 0.05f, 0.05f, 0.15f},
+        {"TOWN SQUARE",      65.0f, 0.40f, 0.20f, true,  true,  3, 0.40f, 0.05f, 0.05f, 0.15f},
     };
     int i = std::max(0, std::min(index, NUM_LEVELS - 1));
     return configs[i];
@@ -84,6 +85,9 @@ void GameWorld::update(float dt) {
     // Scroll world
     m_cameraX += m_scrollSpeed * dt * frenzy;
 
+    // Keep player's world position in sync with their screen-space X
+    m_player.position.x = m_cameraX + m_player.screenX();
+
     // Generate ahead — keep at least 3 screen-widths of houses in the buffer
     while (m_genHorizon < m_cameraX + RENDER_WIDTH * 3.0f) {
         generateChunk(m_genHorizon);
@@ -93,7 +97,7 @@ void GameWorld::update(float dt) {
     for (auto& h : m_houses)  h->update(dt);
     for (auto& bt : m_bushTrees) bt->update(dt);
 
-    const float playerWorldX = PLAYER_START_X + m_cameraX;
+    const float playerWorldX = m_player.position.x;
     const Vec2  playerWorld  = {playerWorldX, laneY(m_player.currentLane())};
 
     for (auto& t : m_threats) {
@@ -194,7 +198,7 @@ void GameWorld::playerUsePowerUp() {
         float best = 9999.0f;
         Threat* target = nullptr;
         for (auto& t : m_threats) {
-            float dx = t->position.x - (PLAYER_START_X + m_cameraX);
+            float dx = t->position.x - m_player.position.x;
             float dy = t->position.y - m_player.position.y;
             float dist = std::sqrt(dx*dx + dy*dy);
             if (dist < best) { best = dist; target = t.get(); }
@@ -202,25 +206,27 @@ void GameWorld::playerUsePowerUp() {
         if (target) target->freeze(POWERUP_DURATION_ICE);
     } else if (type == PowerUpType::DecoyNut) {
         // Distract all nearby threats toward a position ahead of player
-        Vec2 decoyPos = {PLAYER_START_X + m_cameraX + 40.0f, LANE_GROUND_Y};
+        Vec2 decoyPos = {m_player.position.x + 40.0f, LANE_GROUND_Y};
         for (auto& t : m_threats) {
-            float dx = t->position.x - (PLAYER_START_X + m_cameraX);
+            float dx = t->position.x - m_player.position.x;
             if (std::abs(dx) < 80.0f) t->distract(decoyPos);
         }
     }
     m_heldPowerUp.reset();
 }
 
+void GameWorld::playerMoveHorizontal(float dir, float dt) {
+    if (!m_gameOver) m_player.moveHorizontal(dir, dt);
+}
+
 void GameWorld::respawnPlayer() {
     m_gameOver = false;
     m_player.respawn();
+    m_player.position.x = m_cameraX + m_player.screenX();
 
-    // Freeze nearby threats so the player has breathing room
-    for (auto& t : m_threats) {
-        float dx = t->position.x - (PLAYER_START_X + m_cameraX);
-        if (std::abs(dx) < static_cast<float>(RENDER_WIDTH) * 0.6f)
-            t->freeze(PLAYER_RESPAWN_INVINCIBILITY);
-    }
+    // Freeze ALL threats so the player has breathing room after respawn
+    for (auto& t : m_threats)
+        t->freeze(RESPAWN_THREAT_FREEZE);
 }
 
 // ─── Generation ──────────────────────────────────────────────────────────────
@@ -417,16 +423,17 @@ void GameWorld::spawnPowerUp(float worldX) {
 
 // ─── Collision ───────────────────────────────────────────────────────────────
 void GameWorld::checkCollisions() {
+    // position.x is already world space (= cameraX + screenX), so bounds() needs no offset
     Rect playerBounds = m_player.bounds();
-    // Offset player bounds to world space
-    playerBounds.x += m_cameraX - PLAYER_START_X;
 
     // Power-up collection
     for (auto& pu : m_powerups) {
         if (!pu->alive || pu->collected()) continue;
         Rect puBounds = pu->bounds();
         if (Collision::overlaps(playerBounds, puBounds)) {
+            PowerUpType t = pu->powerUpType();
             pu->apply(m_player);
+            if (onPowerUpCollect) onPowerUpCollect(t);
         }
     }
 
@@ -459,7 +466,7 @@ void GameWorld::checkCollisions() {
 void GameWorld::checkPorchLights() {
     if (m_player.isShadowMode()) return;
 
-    Vec2 playerWorld = {PLAYER_START_X + m_cameraX,
+    Vec2 playerWorld = {m_player.position.x,
                         m_player.position.y + m_player.height * 0.5f};
 
     for (auto& house : m_houses) {
@@ -539,65 +546,39 @@ void GameWorld::renderSnow(SDL_Renderer* renderer) const {
 }
 
 void GameWorld::renderBackground(SDL_Renderer* renderer) const {
-    // Sky gradient: top = very dark blue, bottom = slightly lighter
-    for (int y = 0; y < RENDER_HEIGHT; y += 4) {
-        float t = static_cast<float>(y) / RENDER_HEIGHT;
-        uint8_t r = static_cast<uint8_t>(8  + static_cast<int>(t * 10));
-        uint8_t g = static_cast<uint8_t>(12 + static_cast<int>(t * 8));
-        uint8_t b = static_cast<uint8_t>(35 + static_cast<int>(t * 15));
-        SDL_SetRenderDrawColor(renderer, r, g, b, 255);
-        SDL_RenderDrawLine(renderer, 0, y, RENDER_WIDTH, y);
-        SDL_RenderDrawLine(renderer, 0, y+1, RENDER_WIDTH, y+1);
-        SDL_RenderDrawLine(renderer, 0, y+2, RENDER_WIDTH, y+2);
-        SDL_RenderDrawLine(renderer, 0, y+3, RENDER_WIDTH, y+3);
+    // Sky — tile the 64x30 sky_gradient sprite across the full screen width,
+    // scaled to fill sky height (top of screen to LANE_GROUND_Y).
+    int skyH = static_cast<int>(LANE_GROUND_Y);
+    // sky_gradient is 64 px wide; tile 5 copies across 320 px
+    for (int tx = 0; tx < RENDER_WIDTH; tx += 64) {
+        SpriteRegistry::draw(renderer, "sky_gradient",
+                             static_cast<float>(tx), 0.f,
+                             64.f, static_cast<float>(skyH));
     }
 
-    // Ground strip
-    SDL_SetRenderDrawColor(renderer, 30, 45, 25, 255);
-    SDL_Rect ground = {0, static_cast<int>(LANE_GROUND_Y),
-                       RENDER_WIDTH, RENDER_HEIGHT - static_cast<int>(LANE_GROUND_Y)};
-    SDL_RenderFillRect(renderer, &ground);
-
-    // Snow on ground
-    SDL_SetRenderDrawColor(renderer, 200, 220, 240, 255);
-    SDL_Rect snowGround = {0, static_cast<int>(LANE_GROUND_Y),
-                           RENDER_WIDTH, 4};
-    SDL_RenderFillRect(renderer, &snowGround);
+    // Ground strip — tile the 64x4 ground_strip sprite
+    for (int tx = 0; tx < RENDER_WIDTH; tx += 64) {
+        SpriteRegistry::draw(renderer, "ground_strip",
+                             static_cast<float>(tx), LANE_GROUND_Y,
+                             64.f, static_cast<float>(RENDER_HEIGHT - skyH));
+    }
 }
 
 void GameWorld::renderMoon(SDL_Renderer* renderer) const {
-    // Moon in top-right
-    int mx = RENDER_WIDTH - 30, my = 18;
-    int r = 10;
-    SDL_SetRenderDrawColor(renderer, 240, 240, 220, 255);
-    for (int dy = -r; dy <= r; ++dy) {
-        int dx = static_cast<int>(std::sqrt(static_cast<float>(r*r - dy*dy)));
-        SDL_RenderDrawLine(renderer, mx - dx, my + dy, mx + dx, my + dy);
-    }
-    // Crescent shadow
-    SDL_SetRenderDrawColor(renderer, 10, 15, 40, 255);
-    for (int dy = -r; dy <= r; ++dy) {
-        int dx = static_cast<int>(std::sqrt(static_cast<float>(r*r - dy*dy)));
-        SDL_RenderDrawLine(renderer, mx - dx + 4, my + dy, mx + dx, my + dy);
-    }
+    // moon sprite is 24x24; place in top-right area
+    SpriteRegistry::draw(renderer, "moon",
+                         static_cast<float>(RENDER_WIDTH) - 34.f, 6.f);
 }
 
 void GameWorld::renderStars(SDL_Renderer* renderer) const {
-    // Fixed star positions based on a deterministic seed
-    std::mt19937 starRng(0xDEADBEEF);
-    std::uniform_int_distribution<int> xDist(0, RENDER_WIDTH);
-    std::uniform_int_distribution<int> yDist(0, static_cast<int>(RENDER_HEIGHT * 0.55f));
-    std::uniform_int_distribution<int> brightDist(120, 240);
-
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    for (int i = 0; i < 50; ++i) {
-        int sx = xDist(starRng);
-        int sy = yDist(starRng);
-        uint8_t bright = static_cast<uint8_t>(brightDist(starRng));
-        SDL_SetRenderDrawColor(renderer, bright, bright, bright, bright);
-        SDL_RenderDrawPoint(renderer, sx, sy);
+    // stars_overlay is 64x30 with sparse star pixels.
+    // Draw it tiled across the sky at 50% alpha so the sky shows through.
+    for (int tx = 0; tx < RENDER_WIDTH; tx += 64) {
+        SpriteRegistry::draw(renderer, "stars_overlay",
+                             static_cast<float>(tx), 0.f,
+                             64.f, static_cast<float>(LANE_GROUND_Y),
+                             128);  // semi-transparent overlay
     }
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 }
 
 // ─── Lighting ────────────────────────────────────────────────────────────────

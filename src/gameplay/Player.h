@@ -38,6 +38,7 @@ public:
     // Input-driven actions
     void moveUp();
     void moveDown();
+    void moveHorizontal(float dir, float dt);  // dir: -1=left, +1=right; call held each frame
     void tryBite(const std::vector<std::shared_ptr<LightString>>& nearbyStrings, float cameraX);
 
     // Reset player state for a new life (keeps camera position)
@@ -60,6 +61,7 @@ public:
 
     LaneType    currentLane() const { return m_currentLane; }
     PlayerState state()       const { return m_state; }
+    float       screenX()     const { return m_screenX; }  // current screen-space X position
 
     float frenzySlowFactor() const;  // 1.0 normally, < 1.0 in frenzy
 
@@ -82,7 +84,8 @@ private:
     LaneType    m_currentLane   = LaneType::Ground;
     LaneType    m_targetLane    = LaneType::Ground;
     PlayerState m_state         = PlayerState::Idle;
-    float       m_jumpProgress  = 0.0f;  // 0→1 during lane transition
+    float       m_screenX       = 50.0f;  // screen-space X (PLAYER_START_X default)
+    float       m_jumpProgress  = 0.0f;   // 0→1 during lane transition
     float       m_jumpStartY    = 0.0f;
     float       m_jumpTargetY   = 0.0f;
 

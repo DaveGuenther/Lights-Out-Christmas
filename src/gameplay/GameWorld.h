@@ -30,6 +30,7 @@ public:
     // Input forwarding
     void playerMoveUp();
     void playerMoveDown();
+    void playerMoveHorizontal(float dir, float dt);  // dir: -1=left, +1=right; call held per frame
     void playerBite();
     void playerUsePowerUp();
 
@@ -56,6 +57,7 @@ public:
     std::function<void()>    onGameOver;
     std::function<void()>    onLevelComplete;
     std::function<void(int, Vec2)> onScorePopup;   // (points, worldPos)
+    std::function<void(PowerUpType)> onPowerUpCollect;  // (type) when collected
 
 private:
     void generateChunk(float fromX);

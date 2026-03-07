@@ -130,6 +130,7 @@ set(CORE_SOURCES
     src/core/InputManager.cpp
     src/core/AudioManager.cpp
     src/core/ResourceManager.cpp
+    src/core/SpriteRegistry.cpp
 )
 
 set(GAMEPLAY_SOURCES
@@ -171,6 +172,8 @@ set(UI_SOURCES
     src/ui/PauseMenu.cpp
     src/ui/GameOverScreen.cpp
     src/ui/UpgradeScreen.cpp
+    src/ui/TownSquareBossScreen.cpp
+    src/ui/YouWinScreen.cpp
 )
 
 set(STEAM_SOURCES
