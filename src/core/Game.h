@@ -55,6 +55,7 @@ public:
     void              resetProgress();
 
     bool shouldQuit() const { return m_quit; }
+    void quit()             { m_quit = true; }
 
 private:
     void processEvents();

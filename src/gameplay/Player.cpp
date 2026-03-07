@@ -84,8 +84,12 @@ void Player::tryBite(const std::vector<std::shared_ptr<LightString>>& nearbyStri
 
     if (closest) {
         if (isSuperChomp()) {
-            // Keep biting until fully off
-            while (!closest->isFullyOff()) closest->bite();
+            // Bite repeatedly until the cascade starts (bite() returns false once
+            // cascading — the cascade then plays out via update(dt)).
+            // Without this break, the loop spins forever while m_cascading==true.
+            while (!closest->isFullyOff()) {
+                if (!closest->bite()) break;
+            }
         } else {
             closest->bite();
         }

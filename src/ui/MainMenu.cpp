@@ -8,8 +8,8 @@ namespace LightsOut {
 
 MainMenu::MainMenu(Game& game) : Screen(game) {
     m_items = {
-        {"PLAY",        GameState::Playing},
-        {"LEADERBOARD", GameState::Leaderboard},
+        {"PLAY", GameState::Playing},
+        {"QUIT", GameState::MainMenu, true},
     };
 
     // Init snow
@@ -37,7 +37,11 @@ void MainMenu::handleInput() {
     }
     if (input.isActionJustPressed(Action::MenuConfirm) ||
         input.isActionJustPressed(Action::Bite)) {
-        m_game.replaceState(m_items[m_selected].nextState);
+        const auto& item = m_items[m_selected];
+        if (item.isQuit)
+            m_game.quit();
+        else
+            m_game.replaceState(item.nextState);
     }
 }
 
@@ -175,12 +179,9 @@ void MainMenu::drawMenuItems(SDL_Renderer* r) const {
 void MainMenu::drawControls(SDL_Renderer* r) const {
     (void)r;
     auto& renderer = m_game.renderer();
-    renderer.drawText("UP/DOWN: SELECT  SPACE/A: CONFIRM",
-                      {RENDER_WIDTH * 0.5f, RENDER_HEIGHT - 15.0f},
+    renderer.drawText("UP/DOWN: SELECT   SPACE/A: CONFIRM",
+                      {RENDER_WIDTH * 0.5f, RENDER_HEIGHT - 10.0f},
                       {100, 100, 120}, 8, true);
-    renderer.drawText("ESC: QUIT",
-                      {RENDER_WIDTH * 0.5f, RENDER_HEIGHT - 8.0f},
-                      {80, 80, 100}, 8, true);
 }
 
 }  // namespace LightsOut

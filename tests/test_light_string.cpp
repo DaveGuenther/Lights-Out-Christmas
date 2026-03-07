@@ -87,3 +87,42 @@ TEST_CASE("LightString: sparks generated don't crash render path", "[light]") {
     ls.bite();
     REQUIRE_NOTHROW(ls.update(0.5f));
 }
+
+// Regression: SuperChomp used a while(!isFullyOff()) loop calling bite().
+// Once a bite starts the cascade, bite() returns false but isFullyOff() stays
+// false until the cascade plays out — causing an infinite loop that froze the game.
+TEST_CASE("LightString: bite during cascade returns false while not yet fully off", "[light][regression]") {
+    LightString ls(0.0f, 50.0f, 40.0f, false, 0);
+    REQUIRE_FALSE(ls.isFullyOff());
+
+    bool first = ls.bite();  // starts cascade
+    REQUIRE(first);
+    REQUIRE_FALSE(ls.isFullyOff());  // cascade just started — not off yet
+
+    // Second bite returns false (cascading), but string is still not fully off.
+    // This is exactly the state that caused the infinite loop.
+    bool second = ls.bite();
+    REQUIRE_FALSE(second);           // must return false, not spin forever
+    REQUIRE_FALSE(ls.isFullyOff());  // still not off
+
+    // Cascade completes after enough updates
+    for (int i = 0; i < 200; ++i) ls.update(0.01f);
+    REQUIRE(ls.isFullyOff());
+}
+
+TEST_CASE("LightString: tangled bite-during-cascade also returns false safely", "[light][regression]") {
+    LightString ls(0.0f, 50.0f, 40.0f, true, 0);
+    // Bite enough times to start the cascade
+    for (int i = 0; i < ls.bitesRequired(); ++i) {
+        ls.bite();
+    }
+    REQUIRE_FALSE(ls.isFullyOff());
+
+    // Any further bites must return false without looping
+    bool extra = ls.bite();
+    REQUIRE_FALSE(extra);
+    REQUIRE_FALSE(ls.isFullyOff());
+
+    for (int i = 0; i < 200; ++i) ls.update(0.01f);
+    REQUIRE(ls.isFullyOff());
+}

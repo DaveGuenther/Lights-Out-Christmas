@@ -16,7 +16,8 @@ public:
 private:
     struct MenuItem {
         std::string label;
-        GameState   nextState;
+        GameState   nextState = GameState::MainMenu;  // ignored when isQuit
+        bool        isQuit    = false;
     };
 
     std::vector<MenuItem> m_items;

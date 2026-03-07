@@ -172,6 +172,8 @@ set(UI_SOURCES
     src/ui/PauseMenu.cpp
     src/ui/GameOverScreen.cpp
     src/ui/UpgradeScreen.cpp
+    src/ui/TownSquareBossScreen.cpp
+    src/ui/YouWinScreen.cpp
 )
 
 set(STEAM_SOURCES

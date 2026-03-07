@@ -42,7 +42,9 @@ inline constexpr float PLAYER_WIDTH       = 12.0f;
 inline constexpr float PLAYER_HEIGHT      = 14.0f;
 inline constexpr float PLAYER_BITE_RANGE  = 16.0f;   // horizontal range for biting lights
 inline constexpr int   PLAYER_LIVES       = 3;
-inline constexpr float PLAYER_RESPAWN_INVINCIBILITY = 2.5f;  // invincibility seconds on respawn
+inline constexpr float PLAYER_RESPAWN_INVINCIBILITY = 5.0f;  // invincibility seconds on respawn
+inline constexpr float RESPAWN_THREAT_FREEZE        = 5.0f;  // all threats frozen this long after respawn
+inline constexpr float DEATH_OVERLAY_DURATION       = 2.0f;  // seconds to show death message before respawn
 
 // ─── Scoring ─────────────────────────────────────────────────────────────────
 inline constexpr int POINTS_PER_LIGHT           = 10;

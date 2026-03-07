@@ -5,6 +5,8 @@
 #include "ui/PauseMenu.h"
 #include "ui/GameOverScreen.h"
 #include "ui/UpgradeScreen.h"
+#include "ui/TownSquareBossScreen.h"
+#include "ui/YouWinScreen.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
@@ -161,6 +163,12 @@ void Game::buildScreenForState(GameState state) {
         break;
     case GameState::Upgrade:
         m_currentScreen = std::make_unique<UpgradeScreen>(*this, 0, m_totalScore);
+        break;
+    case GameState::TownSquareBoss:
+        m_currentScreen = std::make_unique<TownSquareBossScreen>(*this);
+        break;
+    case GameState::YouWin:
+        m_currentScreen = std::make_unique<YouWinScreen>(*this);
         break;
     default:
         m_currentScreen = std::make_unique<MainMenu>(*this);

@@ -31,15 +31,15 @@ static LevelConfig getLevelConfig(int index) {
     // (hard fraction = 1 - easy - medium, for lit houses only)
     static const LevelConfig configs[NUM_LEVELS] = {
         // 0: Suburban Street — easy: mostly 1-tier, a few 2-tier, rarely 3-tier
-        {"SUBURBAN STREET",   45.0f, 0.30f, 0.40f, false, false, 1, 0.05f, 0.50f, 0.65f, 0.30f},
+        {"SUBURBAN STREET",   45.0f, 0.15f, 0.40f, false, false, 1, 0.05f, 0.50f, 0.65f, 0.30f},
         // 1: Rich Neighborhood — moderate mix
-        {"RICH NEIGHBORHOOD", 50.0f, 0.45f, 0.30f, false, false, 2, 0.15f, 0.35f, 0.40f, 0.40f},
+        {"RICH NEIGHBORHOOD", 50.0f, 0.22f, 0.30f, false, false, 2, 0.15f, 0.35f, 0.40f, 0.40f},
         // 2: The Cul-De-Sac — medium-hard
-        {"THE CUL-DE-SAC",   55.0f, 0.50f, 0.35f, true,  false, 2, 0.20f, 0.20f, 0.25f, 0.45f},
+        {"THE CUL-DE-SAC",   55.0f, 0.25f, 0.35f, true,  false, 2, 0.20f, 0.20f, 0.25f, 0.45f},
         // 3: Christmas Eve — hard: mostly 3-tier
-        {"CHRISTMAS EVE",    60.0f, 0.70f, 0.25f, false, true,  2, 0.30f, 0.10f, 0.10f, 0.25f},
+        {"CHRISTMAS EVE",    60.0f, 0.35f, 0.25f, false, true,  2, 0.30f, 0.10f, 0.10f, 0.25f},
         // 4: The Town Square — hardest: almost all 3-tier
-        {"TOWN SQUARE",      65.0f, 0.80f, 0.20f, true,  true,  3, 0.40f, 0.05f, 0.05f, 0.15f},
+        {"TOWN SQUARE",      65.0f, 0.40f, 0.20f, true,  true,  3, 0.40f, 0.05f, 0.05f, 0.15f},
     };
     int i = std::max(0, std::min(index, NUM_LEVELS - 1));
     return configs[i];
@@ -224,12 +224,9 @@ void GameWorld::respawnPlayer() {
     m_player.respawn();
     m_player.position.x = m_cameraX + m_player.screenX();
 
-    // Freeze nearby threats so the player has breathing room
-    for (auto& t : m_threats) {
-        float dx = t->position.x - m_player.position.x;
-        if (std::abs(dx) < static_cast<float>(RENDER_WIDTH) * 0.6f)
-            t->freeze(PLAYER_RESPAWN_INVINCIBILITY);
-    }
+    // Freeze ALL threats so the player has breathing room after respawn
+    for (auto& t : m_threats)
+        t->freeze(RESPAWN_THREAT_FREEZE);
 }
 
 // ─── Generation ──────────────────────────────────────────────────────────────
@@ -426,16 +423,17 @@ void GameWorld::spawnPowerUp(float worldX) {
 
 // ─── Collision ───────────────────────────────────────────────────────────────
 void GameWorld::checkCollisions() {
+    // position.x is already world space (= cameraX + screenX), so bounds() needs no offset
     Rect playerBounds = m_player.bounds();
-    // Offset player bounds to world space
-    playerBounds.x += m_cameraX - PLAYER_START_X;
 
     // Power-up collection
     for (auto& pu : m_powerups) {
         if (!pu->alive || pu->collected()) continue;
         Rect puBounds = pu->bounds();
         if (Collision::overlaps(playerBounds, puBounds)) {
+            PowerUpType t = pu->powerUpType();
             pu->apply(m_player);
+            if (onPowerUpCollect) onPowerUpCollect(t);
         }
     }
 
@@ -468,7 +466,7 @@ void GameWorld::checkCollisions() {
 void GameWorld::checkPorchLights() {
     if (m_player.isShadowMode()) return;
 
-    Vec2 playerWorld = {PLAYER_START_X + m_cameraX,
+    Vec2 playerWorld = {m_player.position.x,
                         m_player.position.y + m_player.height * 0.5f};
 
     for (auto& house : m_houses) {

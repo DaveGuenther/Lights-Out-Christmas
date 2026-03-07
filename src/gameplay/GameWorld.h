@@ -57,6 +57,7 @@ public:
     std::function<void()>    onGameOver;
     std::function<void()>    onLevelComplete;
     std::function<void(int, Vec2)> onScorePopup;   // (points, worldPos)
+    std::function<void(PowerUpType)> onPowerUpCollect;  // (type) when collected
 
 private:
     void generateChunk(float fromX);
