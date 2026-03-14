@@ -41,6 +41,7 @@ set(TESTABLE_SOURCES
     ${CMAKE_SOURCE_DIR}/src/gameplay/Player.cpp
     ${CMAKE_SOURCE_DIR}/src/core/SpriteRegistry.cpp
     ${CMAKE_SOURCE_DIR}/src/core/ResourceManager.cpp
+    ${CMAKE_SOURCE_DIR}/src/core/PlatformData.cpp
 )
 
 set(TEST_SOURCES

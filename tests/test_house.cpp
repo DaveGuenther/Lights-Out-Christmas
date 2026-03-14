@@ -10,7 +10,7 @@ using namespace LightsOut;
 // meaning no light strings are placed. This lets us test the House API without
 // needing real image files in the test environment.
 static HouseAsset makeFallbackAsset(float width = 256.0f) {
-    return HouseAsset{"test_house", "", "", width};
+    return HouseAsset{"test_house", "", "", "", width};
 }
 
 // ── Basic construction ────────────────────────────────────────────────────────

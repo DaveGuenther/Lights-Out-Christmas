@@ -133,6 +133,8 @@ set(CORE_SOURCES
     src/core/ResourceManager.cpp
     src/core/SpriteRegistry.cpp
     src/core/HouseAssetLoader.cpp
+    src/core/PlatformData.cpp
+    src/core/DevConsole.cpp
 )
 
 set(GAMEPLAY_SOURCES
@@ -152,6 +154,7 @@ set(GAMEPLAY_SOURCES
     src/gameplay/threats/Cat.cpp
     src/gameplay/threats/Owl.cpp
     src/gameplay/threats/NeighborhoodWatch.cpp
+    src/gameplay/TreeEntity.cpp
     src/gameplay/powerups/PowerUp.cpp
     src/gameplay/powerups/AcornStash.cpp
     src/gameplay/powerups/WinterCoat.cpp
@@ -176,6 +179,7 @@ set(UI_SOURCES
     src/ui/UpgradeScreen.cpp
     src/ui/TownSquareBossScreen.cpp
     src/ui/YouWinScreen.cpp
+    src/ui/ControlsScreen.cpp
 )
 
 set(STEAM_SOURCES

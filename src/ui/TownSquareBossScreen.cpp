@@ -118,8 +118,8 @@ void TownSquareBossScreen::handleInput() {
         return;
     }
 
-    if (input.isActionJustPressed(Action::MoveUp))   m_player.moveUp();
-    if (input.isActionJustPressed(Action::MoveDown))  m_player.moveDown();
+    if (input.isActionJustPressed(Action::Jump))  m_player.jump();
+    if (input.isActionJustPressed(Action::Drop))  m_player.drop();
     if (input.isActionJustPressed(Action::Bite)) {
         m_player.tryBite(m_lights, m_cameraX);
         // Remove fully-extinguished strings immediately

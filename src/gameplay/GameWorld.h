@@ -3,6 +3,7 @@
 #include "House.h"
 #include "BushTree.h"
 #include "LightString.h"
+#include "TreeEntity.h"
 #include "ScoreSystem.h"
 #include "DarknessManager.h"
 #include "Collision.h"
@@ -11,6 +12,7 @@
 #include "core/Constants.h"
 #include "core/Types.h"
 #include "core/HouseAssetLoader.h"
+#include "core/PlatformData.h"
 
 #include <vector>
 #include <memory>
@@ -29,8 +31,8 @@ public:
     void render(SDL_Renderer* renderer);
 
     // Input forwarding
-    void playerMoveUp();
-    void playerMoveDown();
+    void playerJump();
+    void playerDrop();
     void playerMoveHorizontal(float dir, float dt);  // dir: -1=left, +1=right; call held per frame
     void playerBite();
     void playerUsePowerUp();
@@ -62,11 +64,13 @@ public:
 
 private:
     void generateChunk(float fromX);
+    void generateTreeGap(float fromX, float gapWidth);
     void spawnThreat(float worldX);
     void spawnPowerUp(float worldX);
     void pruneOffscreen();
     void checkCollisions();
     void checkPorchLights();
+    void resolvePlatformCollision();
     void handleLightBite(LightString& ls);
 
     LevelConfig  m_config;
@@ -84,11 +88,14 @@ private:
     // The active inventory power-up (collected but not yet used)
     std::unique_ptr<PowerUp> m_heldPowerUp;
 
-    std::vector<std::shared_ptr<House>>     m_houses;
-    std::vector<std::shared_ptr<BushTree>>  m_bushTrees;
+    std::vector<std::shared_ptr<House>>       m_houses;
+    std::vector<std::shared_ptr<BushTree>>    m_bushTrees;
+    std::vector<std::shared_ptr<TreeEntity>>  m_trees;
     std::vector<std::shared_ptr<LightString>> m_lights;
-    std::vector<std::shared_ptr<Threat>>    m_threats;
-    std::vector<std::shared_ptr<PowerUp>>   m_powerups;
+    std::vector<std::shared_ptr<Threat>>      m_threats;
+    std::vector<std::shared_ptr<PowerUp>>     m_powerups;
+
+    bool        m_playerMovedHoriz = false;  // set by playerMoveHorizontal, consumed in update
 
     // Procedural generation state
     float       m_nextHouseX    = 0.0f;
@@ -97,6 +104,7 @@ private:
     float       m_genHorizon    = 0.0f;  // how far ahead we've generated
     int         m_houseCount    = 0;
     int         m_bushCount     = 0;
+    int         m_treeCount     = 0;
     std::mt19937 m_rng;
 
     // House blackout tracking: houseIndex → how many light strings are dark

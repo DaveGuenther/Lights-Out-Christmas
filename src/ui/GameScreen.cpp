@@ -45,8 +45,8 @@ void GameScreen::handleInput() {
         return;
     }
 
-    if (input.isActionJustPressed(Action::MoveUp))   m_world.playerMoveUp();
-    if (input.isActionJustPressed(Action::MoveDown))  m_world.playerMoveDown();
+    if (input.isActionJustPressed(Action::Jump))  m_world.playerJump();
+    if (input.isActionJustPressed(Action::Drop))  m_world.playerDrop();
     if (input.isActionJustPressed(Action::Bite))      m_world.playerBite();
     if (input.isActionJustPressed(Action::UsePowerUp)) m_world.playerUsePowerUp();
 }
@@ -71,12 +71,13 @@ void GameScreen::update(float dt) {
         return;
     }
 
-    // Horizontal movement is held-input, so we sample it here where dt is available
+    // Horizontal movement — always forward hdir (0 = idle, ±1 = moving)
+    // GameWorld handles idle drift when hdir == 0
     auto& input = m_game.input();
     float hdir = 0.0f;
     if (input.isActionDown(Action::MoveLeft))  hdir -= 1.0f;
     if (input.isActionDown(Action::MoveRight)) hdir += 1.0f;
-    if (hdir != 0.0f) m_world.playerMoveHorizontal(hdir, dt);
+    m_world.playerMoveHorizontal(hdir, dt);
 
     m_world.update(dt);
     m_particles.setCameraX(m_world.scrollX());

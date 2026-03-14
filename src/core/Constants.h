@@ -37,14 +37,21 @@ inline constexpr float PLAYER_HORIZONTAL_SPEED = 120.0f;  // px/sec screen-space
 inline constexpr float PLAYER_SCREEN_X_MIN     = 0.0f;    // leftmost screen position allowed
 inline constexpr float PLAYER_SCREEN_X_MAX     = 620.0f;  // rightmost (RENDER_WIDTH - PLAYER_WIDTH)
 inline constexpr float PLAYER_SPEED            = 0.0f;    // world scrolls; player moves relative
-inline constexpr float PLAYER_JUMP_SPEED  = 120.0f;  // vertical speed when jumping between lanes
-inline constexpr float PLAYER_WIDTH       = 12.0f;
-inline constexpr float PLAYER_HEIGHT      = 14.0f;
-inline constexpr float PLAYER_BITE_RANGE  = 16.0f;   // horizontal range for biting lights
-inline constexpr int   PLAYER_LIVES       = 3;
+inline constexpr float PLAYER_WIDTH            = 12.0f;
+inline constexpr float PLAYER_HEIGHT           = 14.0f;
+inline constexpr float PLAYER_BITE_RANGE       = 16.0f;   // horizontal range for biting lights
+inline constexpr int   PLAYER_LIVES            = 3;
 inline constexpr float PLAYER_RESPAWN_INVINCIBILITY = 5.0f;  // invincibility seconds on respawn
 inline constexpr float RESPAWN_THREAT_FREEZE        = 5.0f;  // all threats frozen this long after respawn
 inline constexpr float DEATH_OVERLAY_DURATION       = 2.0f;  // seconds to show death message before respawn
+
+// ─── Physics ─────────────────────────────────────────────────────────────────
+inline constexpr float GRAVITY              = 600.0f;  // px/s² downward acceleration
+inline constexpr float JUMP_VELOCITY        = 350.0f;  // px/s upward on jump
+//   From ground (Y≈368): peak ≈ 245  → lands on fence (272) ✓
+//   From fence  (Y≈272): peak ≈ 149  → lands on rooftop (208) ✓
+inline constexpr float DROP_IGNORE_DURATION = 0.35f;   // seconds to pass through drop tier
+inline constexpr float GROUND_FLOOR_Y       = LANE_GROUND_Y;  // hard floor for physics
 
 // ─── Scoring ─────────────────────────────────────────────────────────────────
 inline constexpr int POINTS_PER_LIGHT           = 10;
@@ -53,12 +60,17 @@ inline constexpr int FULL_HOUSE_MULTIPLIER      = 5;
 inline constexpr int CHAIN_REACTION_BONUS       = 50;
 inline constexpr int SPEED_BONUS_DIVISOR        = 100;   // score / time * divisor
 inline constexpr int NEIGHBORHOOD_BONUS         = 2000;
-inline constexpr float DARKNESS_FILL_PER_LIGHT  = 0.005f;
-inline constexpr float DARKNESS_FILL_PER_HOUSE  = 0.05f;
+inline constexpr float DARKNESS_FILL_PER_LIGHT  = 0.00125;
+inline constexpr float DARKNESS_FILL_PER_HOUSE  = 0.0125f;
 
 // ─── House generation ────────────────────────────────────────────────────────
-inline constexpr float HOUSE_MIN_GAP      = 30.0f;   // pixels between houses
-inline constexpr float HOUSE_MAX_GAP      = 80.0f;
+inline constexpr float HOUSE_MIN_GAP      = 150.0f;  // pixels between houses (tree gap)
+inline constexpr float HOUSE_MAX_GAP      = 250.0f;
+inline constexpr int   TREE_GAP_MIN_COUNT = 1;       // trees per gap
+inline constexpr int   TREE_GAP_MAX_COUNT = 4;
+inline constexpr float TREE_BOTTOM_Y_MIN  = 320.0f;  // lowest allowed bottom-edge Y for trees
+inline constexpr float TREE_BOTTOM_Y_MAX  = 352.0f;
+inline constexpr float TREE_SPACING       = 8.0f;    // min px between adjacent trees in a gap
 inline constexpr float HOUSE_SMALL_WIDTH  = 256.0f;  // small_house sprite width
 inline constexpr float HOUSE_MEDIUM_WIDTH = 320.0f;  // medium_house sprite width
 inline constexpr float HOUSE_LARGE_WIDTH  = 384.0f;  // large_house sprite width

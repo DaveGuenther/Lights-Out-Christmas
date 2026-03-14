@@ -3,44 +3,89 @@
         {
             "name":"1_story_a",
             "sprite":"sprites/1_story_a.png",
-            "mask":"sprites/1_story_a_mask.png"
+            "mask":"sprites/1_story_a_mask.png", 
+            "collision":"sprites/1_story_a_collision.png"
         },
         {
             "name":"2_story_a",
             "sprite":"sprites/2_story_a.png",
-            "mask":"sprites/2_story_a_mask.png"
+            "mask":"sprites/2_story_a_mask.png",
+            "collision":"sprites/2_story_a_collision.png"            
         },
         {
             "name":"2_story_b",
             "sprite":"sprites/2_story_b.png",
-            "mask":"sprites/2_story_b_mask.png"
+            "mask":"sprites/2_story_b_mask.png",
+            "collision":"sprites/2_story_b_collision.png"                
         },
         {
             "name":"2_story_c",
             "sprite":"sprites/2_story_c.png",
-            "mask":"sprites/2_story_c_mask.png"
+            "mask":"sprites/2_story_c_mask.png",
+            "collision":"sprites/2_story_c_collision.png"               
         },                
         {
             "name":"2_story_d",
             "sprite":"sprites/2_story_d.png",
-            "mask":"sprites/2_story_d_mask.png"
+            "mask":"sprites/2_story_d_mask.png",
+            "collision":"sprites/2_story_d_collision.png"               
         }
     ],
     "medium_house":[
         {
             "name":"1_story_wide_a",
             "sprite":"sprites/1_story_wide_a.png",
-            "mask":"sprites/1_story_wide_a.png"
+            "mask":"sprites/1_story_wide_a_mask.png", 
+            "collision":"sprites/1_story_wide_a_collision.png"
         }
     ],
     "large_house":[
 
     ],
-    "small_tree":[
-
+    "tree_small":[
+        {
+            "name":"tree_small",
+            "sprite":"tree_small.png",
+            "mask":"tree_small_mask.png",
+            "collision":"tree_small_collision.png"
+        }
     ],
-    "tall_tree":[
-
+    "tree_med_small":[
+        {
+            "name":"tree_med_small",
+            "sprite":"tree_med_small.png",
+            "mask":"tree_med_small_mask.png",
+            "collision":"tree_med_small_collision.png"
+        }
+    ],
+    "tree_med_large":[
+        {
+            "name":"tree_med_large",
+            "sprite":"tree_med_large.png",
+            "mask":"tree_med_large_mask.png",
+            "collision":"tree_med_large_collision.png"
+        }
+    ],
+    "tree_large":[
+        {
+            "name":"tree_large",
+            "sprite":"tree_large.png",
+            "mask":"tree_large_mask.png",
+            "collision":"tree_large_collision.png"
+        }
+    ],        
+    "bushes":[
+        {
+            "name":"bush_a",
+            "sprite":"bush_a.png",
+            "mask":"bush_a_mask.png",
+            "collision":"bush_a_collision.png"
+        },
+        {
+            "name":"bush_b",
+            "sprite":"bush_b.png",
+            "mask":"bush_b_mask.png",
+            "collision":"bush_b_collision.png"
+        }        
     ]
-    
 }

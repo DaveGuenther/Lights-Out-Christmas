@@ -53,11 +53,11 @@ void UpgradeScreen::purchase(const UpgradeOption& opt) {
 void UpgradeScreen::handleInput() {
     auto& input = m_game.input();
 
-    if (input.isActionJustPressed(Action::MoveUp)) {
+    if (input.isActionJustPressed(Action::MenuUp)) {
         m_selected = (m_selected - 1 + static_cast<int>(m_options.size())) %
                      static_cast<int>(m_options.size());
     }
-    if (input.isActionJustPressed(Action::MoveDown)) {
+    if (input.isActionJustPressed(Action::MenuDown)) {
         m_selected = (m_selected + 1) % static_cast<int>(m_options.size());
     }
     if (input.isActionJustPressed(Action::MenuConfirm)) {

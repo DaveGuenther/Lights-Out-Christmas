@@ -67,16 +67,6 @@ LightString::LightString(const std::vector<Vec2>& path, LaneType lane,
 {
     if (path.size() < 2) return;
 
-    // Build cumulative arc-length table
-    std::vector<float> cumDist(path.size(), 0.0f);
-    for (size_t i = 1; i < path.size(); ++i) {
-        float dx = path[i].x - path[i-1].x;
-        float dy = path[i].y - path[i-1].y;
-        cumDist[i] = cumDist[i-1] + std::sqrt(dx*dx + dy*dy);
-    }
-    float totalLen = cumDist.back();
-    if (totalLen < 0.001f) return;
-
     // Bounding box for entity extents
     float minX = path[0].x, maxX = path[0].x;
     float minY = path[0].y, maxY = path[0].y;
@@ -89,35 +79,37 @@ LightString::LightString(const std::vector<Vec2>& path, LaneType lane,
     width  = std::max(maxX - minX, 1.0f);
     height = std::max(maxY - minY, LIGHT_BULB_SIZE * 3.0f);
 
-    int count = static_cast<int>(totalLen / LIGHT_SPACING);
-    if (count < 2) count = 2;
-    m_bulbs.reserve(count);
-
-    // Place bulbs at equal arc-length intervals using the cumulative table
-    for (int i = 0; i < count; ++i) {
-        float targetDist = static_cast<float>(i) / static_cast<float>(count - 1) * totalLen;
-
-        // Find the segment whose end exceeds targetDist
-        size_t seg = 0;
-        while (seg + 1 < path.size() - 1 && cumDist[seg + 1] < targetDist)
-            ++seg;
-
-        // Interpolate within that segment
-        float segStart = cumDist[seg];
-        float segEnd   = cumDist[seg + 1];
-        float t = (segEnd > segStart)
-                  ? (targetDist - segStart) / (segEnd - segStart)
-                  : 0.0f;
-        t = std::max(0.0f, std::min(1.0f, t));
-
+    // Place bulbs using euclidean-distance sampling: walk the path and emit a
+    // bulb whenever we have moved >= LIGHT_SPACING pixels from the last one.
+    // This prevents arc-length inflation from path zigzags (which would produce
+    // hundreds of tightly-packed bulbs and create a solid blob).
+    auto placeBulb = [&](const Vec2& pos) {
         LightBulb b;
-        b.position = {path[seg].x + (path[seg+1].x - path[seg].x) * t,
-                      path[seg].y + (path[seg+1].y - path[seg].y) * t};
+        b.position = pos;
         b.colorIdx = randomLightColorIdx();
         b.color    = k_lightPalette[b.colorIdx];
         b.state    = LightState::On;
         m_bulbs.push_back(b);
+    };
+
+    Vec2 lastPlaced = path[0];
+    placeBulb(path[0]);
+
+    for (size_t i = 1; i < path.size(); ++i) {
+        float dx   = path[i].x - lastPlaced.x;
+        float dy   = path[i].y - lastPlaced.y;
+        float dist = std::sqrt(dx*dx + dy*dy);
+        if (dist >= LIGHT_SPACING) {
+            placeBulb(path[i]);
+            lastPlaced = path[i];
+        }
     }
+
+    // Always end the strand with a bulb at the last path point
+    const Vec2& endPt = path.back();
+    float ex = endPt.x - lastPlaced.x, ey = endPt.y - lastPlaced.y;
+    if (std::sqrt(ex*ex + ey*ey) >= LIGHT_BULB_SIZE)
+        placeBulb(endPt);
 }
 
 void LightString::update(float dt) {
@@ -150,22 +142,23 @@ void LightString::updateSparks(float dt) {
 
 void LightString::render(SDL_Renderer* renderer, float cameraX) {
     if (m_bulbs.empty()) return;
+    if (isFullyOff()) return;  // don't draw wire or knot for dark strands
 
-    // Draw wire between bulbs
+    // Draw wire between bulbs — straight line using both endpoints' actual y
     if (m_bulbs.size() > 1) {
-        SDL_SetRenderDrawColor(renderer, 60, 60, 60, 200);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 50, 50, 50, 180);
         for (size_t i = 0; i + 1 < m_bulbs.size(); ++i) {
-            float x1 = m_bulbs[i].position.x - cameraX;
+            float x1 = m_bulbs[i].position.x   - cameraX;
+            float y1 = m_bulbs[i].position.y;
             float x2 = m_bulbs[i+1].position.x - cameraX;
-            float y  = m_bulbs[i].position.y;
-            // Draw slight droop
-            float mid = (x1 + x2) * 0.5f;
-            SDL_RenderDrawLineF(renderer, x1, y, mid, y + 2.0f);
-            SDL_RenderDrawLineF(renderer, mid, y + 2.0f, x2, y);
+            float y2 = m_bulbs[i+1].position.y;
+            SDL_RenderDrawLineF(renderer, x1, y1, x2, y2);
         }
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }
 
-    // Draw bulbs using sprites
+    // Draw bulbs: multi-layer illumination orb (soft glow) + bright core
     std::uniform_real_distribution<float> flicker(0.0f, 1.0f);
     for (const auto& b : m_bulbs) {
         if (b.state == LightState::Off) continue;
@@ -174,20 +167,43 @@ void LightString::render(SDL_Renderer* renderer, float cameraX) {
         float sx = b.position.x - cameraX;
         float sy = b.position.y;
 
-        // Soft glow halo (procedural, color-matched)
+        uint8_t r = b.color.r, g = b.color.g, bl = b.color.b;
+
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        SDL_SetRenderDrawColor(renderer, b.color.r, b.color.g, b.color.b, 45);
-        SDL_FRect glow = {sx - LIGHT_BULB_SIZE * 1.5f, sy - LIGHT_BULB_SIZE * 1.5f,
-                          LIGHT_BULB_SIZE * 3.0f, LIGHT_BULB_SIZE * 3.0f};
-        SDL_RenderFillRectF(renderer, &glow);
+
+        // Outer soft glow — 9×9
+        SDL_SetRenderDrawColor(renderer, r, g, bl, 18);
+        SDL_FRect glow4 = {sx - 4.5f, sy - 4.5f, 9.0f, 9.0f};
+        SDL_RenderFillRectF(renderer, &glow4);
+
+        // Mid-outer glow — 7×7
+        SDL_SetRenderDrawColor(renderer, r, g, bl, 35);
+        SDL_FRect glow3 = {sx - 3.5f, sy - 3.5f, 7.0f, 7.0f};
+        SDL_RenderFillRectF(renderer, &glow3);
+
+        // Mid glow — 5×5
+        SDL_SetRenderDrawColor(renderer, r, g, bl, 70);
+        SDL_FRect glow2 = {sx - 2.5f, sy - 2.5f, 5.0f, 5.0f};
+        SDL_RenderFillRectF(renderer, &glow2);
+
+        // Inner halo — 3×3
+        SDL_SetRenderDrawColor(renderer, r, g, bl, 140);
+        SDL_FRect glow1 = {sx - 1.5f, sy - 1.5f, 3.0f, 3.0f};
+        SDL_RenderFillRectF(renderer, &glow1);
+
+        // Bright white-tinted core — 2×2
+        SDL_SetRenderDrawColor(renderer,
+            static_cast<uint8_t>(std::min(255, static_cast<int>(r) + 80)),
+            static_cast<uint8_t>(std::min(255, static_cast<int>(g) + 80)),
+            static_cast<uint8_t>(std::min(255, static_cast<int>(bl) + 80)),
+            255);
+        SDL_FRect core = {sx - 1.0f, sy - 1.0f, 2.0f, 2.0f};
+        SDL_RenderFillRectF(renderer, &core);
+
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 
-        // Bulb sprite (4x6 pixels drawn centered at bulb position)
-        const char* spriteName = (b.state == LightState::Flickering)
-                                 ? "bulb_flicker"
-                                 : k_bulbOnSprites[b.colorIdx];
-        SpriteRegistry::draw(renderer, spriteName,
-                             sx - 2.0f, sy - 3.0f);  // center 4x6 sprite on bulb pos
+        // Bulb sprite drawn on top of glow
+        SpriteRegistry::draw(renderer, k_bulbOnSprites[b.colorIdx], sx - 2.0f, sy - 3.0f);
     }
 
     // Tangled indicator — wire_knot sprite

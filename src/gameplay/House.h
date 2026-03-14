@@ -3,6 +3,9 @@
 #include "LightString.h"
 #include "BushTree.h"
 #include "core/HouseAssetLoader.h"
+#include "core/PlatformData.h"
+#include <map>
+#include <utility>
 #include <vector>
 #include <memory>
 
@@ -28,7 +31,8 @@ public:
     House(float worldX, HouseStyle style, int houseIndex,
           const HouseAsset& asset,
           bool hasTopTier, bool hasMiddleTier, bool hasGroundTier,
-          int strands, float tangledProb, SDL_Renderer* renderer = nullptr);
+          int strands, float tangledProb, SDL_Renderer* renderer = nullptr,
+          const std::vector<BushAsset>* bushAssets = nullptr);
 
     void update(float dt) override;
     void render(SDL_Renderer* renderer, float cameraX) override;
@@ -41,6 +45,7 @@ public:
 
     std::vector<std::shared_ptr<LightString>>& lightStrings() { return m_lightStrings; }
     std::vector<std::shared_ptr<BushTree>>&    bushTrees()    { return m_bushTrees; }
+    const std::vector<Platform>&               platforms()    const { return m_platforms; }
 
     void triggerPorchLight();
     void resetPorchLight(float delaySeconds);
@@ -61,21 +66,23 @@ private:
 
     std::vector<std::shared_ptr<LightString>> m_lightStrings;
     std::vector<std::shared_ptr<BushTree>>    m_bushTrees;
+    std::vector<Platform>                     m_platforms;
 
     // Parse the mask image and return paths/areas in world space
     HouseMaskData parseMask(const std::string& maskPath,
                             float worldX, float worldWidth,
                             SDL_Renderer* renderer = nullptr) const;
 
-    // Extract connected path segments from a set of same-colour pixels
+    // Extract one path per BFS-connected component from a pixel-space grid
+    using IPos = std::pair<int,int>;
     std::vector<std::vector<Vec2>> extractPaths(
-        const std::vector<Vec2>& pixels, float worldX,
-        float worldWidth, float maskImgWidth) const;
+        const std::map<IPos, Vec2>& grid) const;
 
     void placeTierLights(const std::vector<std::vector<Vec2>>& paths,
                          LaneType lane, int strands, float tangledProb);
     void placeGroundLights(const HouseMaskData& mask, int strands, float tangledProb);
-    void placeBushes(const std::vector<Vec2>& greenPoints, float worldX, float worldWidth);
+    void placeBushes(const std::vector<Vec2>& greenPoints, float worldX,
+                     const std::vector<BushAsset>* bushAssets);
 
     void drawPorchLight(SDL_Renderer* renderer, float screenX) const;
 };

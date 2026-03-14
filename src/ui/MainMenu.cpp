@@ -8,8 +8,9 @@ namespace LightsOut {
 
 MainMenu::MainMenu(Game& game) : Screen(game) {
     m_items = {
-        {"PLAY", GameState::Playing},
-        {"QUIT", GameState::MainMenu, true},
+        {"PLAY",     GameState::Playing},
+        {"CONTROLS", GameState::Controls},
+        {"QUIT",     GameState::MainMenu, true},
     };
 
     // Init snow
@@ -28,11 +29,11 @@ MainMenu::MainMenu(Game& game) : Screen(game) {
 void MainMenu::handleInput() {
     auto& input = m_game.input();
 
-    if (input.isActionJustPressed(Action::MoveUp)) {
+    if (input.isActionJustPressed(Action::MenuUp)) {
         m_selected = (m_selected - 1 + static_cast<int>(m_items.size())) %
                      static_cast<int>(m_items.size());
     }
-    if (input.isActionJustPressed(Action::MoveDown)) {
+    if (input.isActionJustPressed(Action::MenuDown)) {
         m_selected = (m_selected + 1) % static_cast<int>(m_items.size());
     }
     if (input.isActionJustPressed(Action::MenuConfirm) ||

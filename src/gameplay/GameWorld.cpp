@@ -81,7 +81,7 @@ GameWorld::GameWorld(const LevelConfig& config, SquirrelUpgrades upgrades,
 
     initSnow();
     generateChunk(0.0f);
-    generateChunk(RENDER_WIDTH * 0.6f);
+    generateChunk(m_genHorizon);
 }
 
 // ─── Update ──────────────────────────────────────────────────────────────────
@@ -93,8 +93,25 @@ void GameWorld::update(float dt) {
     // Scroll world
     m_cameraX += m_scrollSpeed * dt * frenzy;
 
-    // Keep player's world position in sync with their screen-space X
-    m_player.position.x = m_cameraX + m_player.screenX();
+    // Player screen position:
+    //   - With input:  moveHorizontal already updated screenX; sync world position from it.
+    //   - No input:    squirrel is world-fixed → screenX drifts left with the scroll.
+    //                  Clamp at PLAYER_SCREEN_X_MIN so it never leaves the screen.
+    bool didMoveHoriz    = m_playerMovedHoriz;
+    m_playerMovedHoriz   = false;
+
+    if (didMoveHoriz) {
+        m_player.position.x = m_cameraX + m_player.screenX();
+    } else {
+        float newSX = m_player.screenX() - m_scrollSpeed * dt * frenzy;
+        newSX = std::max(PLAYER_SCREEN_X_MIN, std::min(PLAYER_SCREEN_X_MAX, newSX));
+        m_player.setScreenX(newSX);
+        m_player.position.x = m_cameraX + newSX;
+    }
+
+    // Drive idle/run animation — running when actively moving or pinned at left wall
+    bool atLeftWall = (m_player.screenX() <= PLAYER_SCREEN_X_MIN + 0.5f);
+    m_player.setMoving(didMoveHoriz || atLeftWall);
 
     // Generate ahead — keep at least 3 screen-widths of houses in the buffer
     while (m_genHorizon < m_cameraX + RENDER_WIDTH * 3.0f) {
@@ -102,8 +119,9 @@ void GameWorld::update(float dt) {
     }
 
     // Update entities
-    for (auto& h : m_houses)  h->update(dt);
+    for (auto& h : m_houses)     h->update(dt);
     for (auto& bt : m_bushTrees) bt->update(dt);
+    for (auto& te : m_trees)     te->update(dt);
 
     const float playerWorldX = m_player.position.x;
     const Vec2  playerWorld  = {playerWorldX, laneY(m_player.currentLane())};
@@ -133,6 +151,8 @@ void GameWorld::update(float dt) {
             t->alert(playerWorld);
     }
     m_player.update(dt);
+    m_player.tickDropTimer(dt);
+    resolvePlatformCollision();
     for (auto& p : m_powerups) p->update(dt);
 
     checkCollisions();
@@ -158,6 +178,7 @@ void GameWorld::render(SDL_Renderer* renderer) {
 
     for (auto& h : m_houses)     h->render(renderer, m_cameraX);
     for (auto& bt : m_bushTrees) bt->render(renderer, m_cameraX);
+    for (auto& te : m_trees)     te->render(renderer, m_cameraX);
     for (auto& t : m_threats)    t->render(renderer, m_cameraX);
     for (auto& p : m_powerups) p->render(renderer, m_cameraX);
     m_player.render(renderer, m_cameraX);
@@ -181,8 +202,8 @@ void GameWorld::render(SDL_Renderer* renderer) {
 }
 
 // ─── Input ───────────────────────────────────────────────────────────────────
-void GameWorld::playerMoveUp()   { if (!m_gameOver) m_player.moveUp(); }
-void GameWorld::playerMoveDown() { if (!m_gameOver) m_player.moveDown(); }
+void GameWorld::playerJump()  { if (!m_gameOver) m_player.jump(); }
+void GameWorld::playerDrop()  { if (!m_gameOver) m_player.drop(); }
 void GameWorld::playerBite()     { if (!m_gameOver) {
     m_player.tryBite(m_lights, m_cameraX);
     // Clean up fully-dark strings
@@ -224,7 +245,8 @@ void GameWorld::playerUsePowerUp() {
 }
 
 void GameWorld::playerMoveHorizontal(float dir, float dt) {
-    if (!m_gameOver) m_player.moveHorizontal(dir, dt);
+    m_playerMovedHoriz = (dir != 0.0f);
+    if (!m_gameOver && m_playerMovedHoriz) m_player.moveHorizontal(dir, dt);
 }
 
 void GameWorld::respawnPlayer() {
@@ -282,7 +304,7 @@ void GameWorld::generateChunk(float fromX) {
 
     const HouseAsset* asset = m_houseAssets.select(houseSize, m_rng);
     // Fallback to a minimal inline asset if none loaded (graceful degradation)
-    static HouseAsset s_fallback{"fallback", "", "", 256.0f};
+    static HouseAsset s_fallback{"fallback", "", "", "", 256.0f};
     if (!asset) asset = &s_fallback;
 
     float houseW = asset->pixelWidth;
@@ -323,7 +345,8 @@ void GameWorld::generateChunk(float fromX) {
     auto house = std::make_shared<House>(
         fromX, style, houseIdx, *asset,
         hasTop, hasMid, hasGnd,
-        strands, m_config.tangledLightProbability);
+        strands, m_config.tangledLightProbability,
+        nullptr, &m_houseAssets.bushAssets());
 
     m_houseTotalStrands[houseIdx] = static_cast<int>(house->lightStrings().size());
     m_houseDarkStrands[houseIdx]  = 0;
@@ -353,27 +376,8 @@ void GameWorld::generateChunk(float fromX) {
     float gap = gapDist(m_rng);
     m_genHorizon = fromX + houseW + gap;
 
-    // Spawn a standalone lit bush in the gap between houses (40% chance)
-    if (gap >= 40.0f && prob(m_rng) < 0.40f) {
-        int  busIdx   = m_bushCount++;
-        auto bushType = (prob(m_rng) < 0.5f)
-                        ? BushTree::Type::Bush
-                        : BushTree::Type::PineTree;
-        int lights = (m_config.easyHouseFraction < 0.3f) ? 2 : 1;
-        float bx   = fromX + houseW + gap * 0.5f - 10.0f;
-        auto bt    = std::make_shared<BushTree>(bx, bushType, lights,
-                                                m_config.tangledLightProbability,
-                                                busIdx);
-        for (auto& ls : bt->lightStrings()) {
-            ls->onDark = [this](int bulbCount, bool chain) {
-                m_score.onLightOff(bulbCount);
-                m_darkness.onLightOff(bulbCount);
-                if (chain) m_score.onChainReaction(1);
-            };
-            m_lights.push_back(ls);
-        }
-        m_bushTrees.push_back(bt);
-    }
+    // Fill gap with trees (replaces old standalone-bush logic)
+    generateTreeGap(fromX + houseW, gap);
 }
 
 void GameWorld::spawnThreat(float worldX) {
@@ -542,9 +546,169 @@ void GameWorld::pruneOffscreen() {
     };
     prune(m_houses);
     prune(m_bushTrees);
+    prune(m_trees);
     prune(m_lights);
     prune(m_threats);
     prune(m_powerups);
+}
+
+// ─── Platform collision ───────────────────────────────────────────────────────
+void GameWorld::resolvePlatformCollision() {
+    Player& p = m_player;
+    if (p.state() == PlayerState::Dead) return;
+
+    const float prevFeet = p.prevFeetY();  // feet Y before this frame's movement
+    const float newFeet  = p.position.y + p.height;
+    const float pLeft    = p.position.x;
+    const float pRight   = p.position.x + p.width;
+
+    // Only resolve when falling (velocityY >= 0); ascending passes through all platforms
+    bool falling = (p.velocityY() >= 0.0f);
+
+    // Mark as not grounded; platform/floor code below will re-ground if applicable
+    bool landedThisFrame = false;
+    float bestPlatformY  = 1e9f;  // lowest surface we can land on this frame
+    LaneType bestTier    = LaneType::Ground;
+
+    // Slope support: when grounded widen the sweep window so horizontal movement
+    // follows angled surfaces without the player falling off.
+    //   STEP_UP   — max pixels the surface can rise per frame (upward slope)
+    //   STEP_DOWN — max pixels the surface can drop per frame (downward slope)
+    static constexpr float STEP_UP   = 6.0f;
+    static constexpr float STEP_DOWN = 4.0f;
+
+    float checkTop = p.isGrounded() ? newFeet - STEP_UP : prevFeet;
+    float checkBot = p.isGrounded() ? newFeet + STEP_DOWN : newFeet;
+
+    if (falling) {
+        // Collect platforms from all houses and trees
+        auto checkPlatforms = [&](const std::vector<Platform>& platforms) {
+            for (const auto& plat : platforms) {
+                // X overlap check
+                if (pRight <= plat.x1 || pLeft >= plat.x2) continue;
+
+                // Skip if drop is in progress and tier matches
+                if (p.isDropping() && plat.tier == p.dropIgnoreTier()) continue;
+
+                // Sweep: feet swept through [checkTop, checkBot]
+                if (plat.y >= checkTop && plat.y <= checkBot) {
+                    // Pick the highest (smallest Y) platform we crossed
+                    if (plat.y < bestPlatformY) {
+                        bestPlatformY = plat.y;
+                        bestTier      = plat.tier;
+                        landedThisFrame = true;
+                    }
+                }
+            }
+        };
+
+        for (const auto& h  : m_houses) checkPlatforms(h->platforms());
+        for (const auto& te : m_trees)  checkPlatforms(te->platforms());
+
+        // Hard ground floor
+        if (!p.isDropping() || p.dropIgnoreTier() != LaneType::Ground) {
+            if (newFeet >= GROUND_FLOOR_Y && prevFeet < GROUND_FLOOR_Y + 2.0f) {
+                if (GROUND_FLOOR_Y < bestPlatformY) {
+                    bestPlatformY   = GROUND_FLOOR_Y;
+                    bestTier        = LaneType::Ground;
+                    landedThisFrame = true;
+                }
+            }
+            // Clamp to floor even without a sweep crossing (already at floor)
+            if (newFeet >= GROUND_FLOOR_Y && !landedThisFrame) {
+                bestPlatformY   = GROUND_FLOOR_Y;
+                bestTier        = LaneType::Ground;
+                landedThisFrame = true;
+            }
+        }
+    }
+
+    if (landedThisFrame) {
+        p.landOnPlatform(bestPlatformY, bestTier);
+    } else if (!falling) {
+        // Ascending — mark not grounded so gravity keeps applying
+        p.setGrounded(false);
+    } else {
+        // Falling but no platform — not grounded
+        p.setGrounded(false);
+    }
+}
+
+// ─── Tree gap generation ──────────────────────────────────────────────────────
+void GameWorld::generateTreeGap(float fromX, float gapWidth) {
+    if (gapWidth < 10.0f) return;
+
+    std::uniform_int_distribution<int>   countDist(TREE_GAP_MIN_COUNT, TREE_GAP_MAX_COUNT);
+    std::uniform_real_distribution<float> probDist(0.0f, 1.0f);
+    std::uniform_real_distribution<float> botYDist(TREE_BOTTOM_Y_MIN, TREE_BOTTOM_Y_MAX);
+
+    int numTrees = countDist(m_rng);
+
+    // Select tree assets and check total width fits
+    std::vector<const TreeAsset*> chosen;
+    for (int i = 0; i < numTrees; ++i) {
+        const TreeAsset* ta = m_houseAssets.selectTree(m_rng);
+        if (ta) chosen.push_back(ta);
+    }
+
+    // Keep a minimum margin between house edges and the nearest tree
+    const float margin = 12.0f;
+    float usable = gapWidth - 2.0f * margin;
+    if (usable <= 0.0f) return;
+
+    // Reduce count if total width + spacing exceeds usable space
+    while (chosen.size() > 1) {
+        float total = 0.0f;
+        for (auto* ta : chosen) total += ta->pixelWidth;
+        total += static_cast<float>(chosen.size() - 1) * TREE_SPACING;
+        if (total <= usable) break;
+        chosen.pop_back();
+    }
+    if (chosen.empty()) return;
+
+    // Check single tree fits
+    if (chosen.size() == 1 && chosen[0]->pixelWidth > usable) return;
+
+    // Generate bottom-Y values in ascending order
+    float prevY = TREE_BOTTOM_Y_MIN;
+    std::vector<float> bottomYs;
+    for (size_t i = 0; i < chosen.size(); ++i) {
+        float lo = prevY;
+        float hi = TREE_BOTTOM_Y_MAX;
+        if (lo > hi) lo = hi;
+        std::uniform_real_distribution<float> yDist(lo, hi);
+        float by = yDist(m_rng);
+        bottomYs.push_back(by);
+        prevY = by;
+    }
+
+    // Center tree group in the usable region (inside the margins)
+    float totalTreeW = 0.0f;
+    for (auto* ta : chosen) totalTreeW += ta->pixelWidth;
+    float totalSpacing = static_cast<float>(chosen.size() - 1) * TREE_SPACING;
+    float leftover = usable - totalTreeW - totalSpacing;
+    float startPad = leftover * 0.5f;
+
+    float curX = fromX + margin + startPad;
+    for (size_t i = 0; i < chosen.size(); ++i) {
+        int treeIdx = m_treeCount++;
+        float tangled = m_config.tangledLightProbability;
+        auto te = std::make_shared<TreeEntity>(curX, bottomYs[i], *chosen[i],
+                                               treeIdx, tangled);
+
+        // Wire light string callbacks
+        for (auto& ls : te->lightStrings()) {
+            ls->onDark = [this](int bulbCount, bool chain) {
+                m_score.onLightOff(bulbCount);
+                m_darkness.onLightOff(bulbCount);
+                if (chain) m_score.onChainReaction(1);
+            };
+            m_lights.push_back(ls);
+        }
+
+        m_trees.push_back(te);
+        curX += chosen[i]->pixelWidth + TREE_SPACING;
+    }
 }
 
 // ─── Snow ────────────────────────────────────────────────────────────────────
@@ -641,9 +805,11 @@ void GameWorld::renderStars(SDL_Renderer* renderer) const {
 void GameWorld::renderLighting(SDL_Renderer* renderer) const {
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
-    // Ambient darkness overlay — deepens as lights are extinguished
+    // Ambient darkness overlay — deepens as lights are extinguished.
+    // Once the meter is full, cap the overlay so new lights remain visible.
     float darkness = m_darkness.darkness();
-    uint8_t ambAlpha = static_cast<uint8_t>(25.0f + darkness * 90.0f);
+    float overlayDark = m_darkness.isFull() ? 0.35f : darkness;
+    uint8_t ambAlpha = static_cast<uint8_t>(25.0f + overlayDark * 90.0f);
     SDL_SetRenderDrawColor(renderer, 0, 0, 12, ambAlpha);
     SDL_FRect full = {0.0f, 0.0f,
                       static_cast<float>(RENDER_WIDTH),

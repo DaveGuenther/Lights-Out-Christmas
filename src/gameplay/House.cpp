@@ -1,11 +1,15 @@
 #include "gameplay/House.h"
 #include "core/Constants.h"
 #include "core/SpriteRegistry.h"
+#include "core/PlatformData.h"
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <algorithm>
 #include <cmath>
+#include <map>
+#include <queue>
 #include <random>
+#include <set>
 
 namespace LightsOut {
 
@@ -13,7 +17,7 @@ static std::mt19937 s_houseRng(123);
 
 // ─── Color matching helpers ───────────────────────────────────────────────────
 static bool isBlue(uint8_t r, uint8_t g, uint8_t b) {
-    return b > 150 && r < 100 && g < 100;
+    return b >= 150 && b > r + 60 && b > g + 40;
 }
 static bool isYellow(uint8_t r, uint8_t g, uint8_t b) {
     return r > 150 && g > 150 && b < 100;
@@ -29,7 +33,8 @@ static bool isGreen(uint8_t r, uint8_t g, uint8_t b) {
 House::House(float worldX, HouseStyle style, int houseIndex,
              const HouseAsset& asset,
              bool hasTopTier, bool hasMiddleTier, bool hasGroundTier,
-             int strands, float tangledProb, SDL_Renderer* renderer)
+             int strands, float tangledProb, SDL_Renderer* renderer,
+             const std::vector<BushAsset>* bushAssets)
     : Entity(TAG_HOUSE)
     , m_houseIndex(houseIndex)
     , m_style(style)
@@ -44,16 +49,23 @@ House::House(float worldX, HouseStyle style, int houseIndex,
 
     HouseMaskData mask = parseMask(asset.maskPath, worldX, asset.pixelWidth, renderer);
 
-    if (hasTopTier && !mask.bluePaths.empty())
+    // Always create lights for any tier that has mask data — ensures painted
+    // sprite lights always have corresponding interactive LightString objects.
+    if (!mask.bluePaths.empty())
         placeTierLights(mask.bluePaths, LaneType::Rooftop, strands, tangledProb);
 
-    if (hasMiddleTier && !mask.yellowPaths.empty())
+    if (!mask.yellowPaths.empty())
         placeTierLights(mask.yellowPaths, LaneType::Fence, strands, tangledProb);
 
-    if (hasGroundTier)
-        placeGroundLights(mask, strands, tangledProb);
+    placeGroundLights(mask, strands, tangledProb);
 
-    placeBushes(mask.greenPoints, worldX, asset.pixelWidth);
+    (void)hasTopTier; (void)hasMiddleTier; (void)hasGroundTier;
+
+    placeBushes(mask.greenPoints, worldX, bushAssets);
+
+    // Parse collision map → platforms (pass rendered size so pixel coords are scaled correctly)
+    m_platforms = parsePlatforms(asset.collisionPath, worldX, position.y,
+                                 m_spriteWidth, HOUSE_HEIGHT);
 }
 
 // ─── Update ──────────────────────────────────────────────────────────────────
@@ -121,7 +133,9 @@ HouseMaskData House::parseMask(const std::string& maskPath,
     int imgW = rgba->w;
     int imgH = rgba->h;
 
-    std::vector<Vec2> bluePixels, yellowPixels, redPixels, greenPixels;
+    // Build pixel-space grids (image coords → world Vec2) for BFS path extraction
+    std::map<IPos, Vec2> blueGrid, yellowGrid, redGrid;
+    std::vector<Vec2> greenPixels;
 
     SDL_LockSurface(rgba);
     const uint8_t* pixels = static_cast<const uint8_t*>(rgba->pixels);
@@ -136,101 +150,129 @@ HouseMaskData House::parseMask(const std::string& maskPath,
             float wx = worldX + (static_cast<float>(x) / static_cast<float>(imgW)) * worldWidth;
             float wy = (static_cast<float>(y) / static_cast<float>(imgH)) * HOUSE_HEIGHT
                        + (HOUSE_GROUND_Y - HOUSE_HEIGHT);
-
             Vec2 pt{wx, wy};
-            if (isBlue(r, g, b))
-                bluePixels.push_back(pt);
-            else if (isYellow(r, g, b))
-                yellowPixels.push_back(pt);
-            else if (isRed(r, g, b))
-                redPixels.push_back(pt);
-            else if (isGreen(r, g, b))
-                greenPixels.push_back(pt);
+
+            if      (isBlue  (r, g, b)) blueGrid  [{x, y}] = pt;
+            else if (isYellow(r, g, b)) yellowGrid [{x, y}] = pt;
+            else if (isRed   (r, g, b)) redGrid    [{x, y}] = pt;
+            else if (isGreen (r, g, b)) greenPixels.push_back(pt);
         }
     }
     SDL_UnlockSurface(rgba);
     SDL_FreeSurface(rgba);
 
-    result.bluePaths   = extractPaths(bluePixels,   worldX, worldWidth, static_cast<float>(imgW));
-    result.yellowPaths = extractPaths(yellowPixels, worldX, worldWidth, static_cast<float>(imgW));
-    result.redPaths    = extractPaths(redPixels,    worldX, worldWidth, static_cast<float>(imgW));
+    result.bluePaths   = extractPaths(blueGrid);
+    result.yellowPaths = extractPaths(yellowGrid);
+    result.redPaths    = extractPaths(redGrid);
     result.greenPoints = greenPixels;
 
     return result;
 }
 
 // ─── Path extraction ──────────────────────────────────────────────────────────
+// One path per BFS-connected component (image pixel space), reduced to a
+// centerline so thick strokes don't produce stacked duplicate bulbs.
+// Scan order: bottom-to-top (descending Y), then left-to-right (ascending X).
 std::vector<std::vector<Vec2>> House::extractPaths(
-    const std::vector<Vec2>& pixels, float /*worldX*/,
-    float worldWidth, float maskImgWidth) const
+    const std::map<IPos, Vec2>& grid) const
 {
     std::vector<std::vector<Vec2>> paths;
-    if (pixels.empty()) return paths;
+    if (grid.empty()) return paths;
 
-    std::vector<Vec2> sorted = pixels;
-    std::sort(sorted.begin(), sorted.end(),
-              [](const Vec2& a, const Vec2& b){ return a.x < b.x; });
+    // Scan order: bottom-to-top, left-to-right
+    std::vector<IPos> scanOrder;
+    scanOrder.reserve(grid.size());
+    for (const auto& [key, _] : grid) scanOrder.push_back(key);
+    std::sort(scanOrder.begin(), scanOrder.end(),
+              [](const IPos& a, const IPos& b) {
+                  if (a.second != b.second) return a.second > b.second;
+                  return a.first < b.first;
+              });
 
-    // Split into separate paths when there is a large horizontal gap
-    float gapThreshold = (worldWidth / maskImgWidth) * 4.0f;
+    static constexpr int kDx[] = {-1,-1,-1, 0, 0, 1, 1, 1};
+    static constexpr int kDy[] = {-1, 0, 1,-1, 1,-1, 0, 1};
 
-    std::vector<Vec2> current;
-    current.push_back(sorted[0]);
+    std::set<IPos> visited;
 
-    for (size_t i = 1; i < sorted.size(); ++i) {
-        float dx = sorted[i].x - sorted[i-1].x;
-        float dy = sorted[i].y - sorted[i-1].y;
-        float dist = std::sqrt(dx*dx + dy*dy);
-        if (dist > gapThreshold) {
-            if (current.size() >= 2) paths.push_back(current);
-            current.clear();
+    for (const IPos& seed : scanOrder) {
+        if (visited.count(seed)) continue;
+
+        // BFS — collect all 8-connected pixels in this component
+        std::vector<Vec2> component;
+        std::queue<IPos> q;
+        q.push(seed);
+        visited.insert(seed);
+        while (!q.empty()) {
+            auto [cx, cy] = q.front(); q.pop();
+            component.push_back(grid.at({cx, cy}));
+            for (int d = 0; d < 8; ++d) {
+                IPos nb{cx + kDx[d], cy + kDy[d]};
+                if (!visited.count(nb) && grid.count(nb)) {
+                    visited.insert(nb);
+                    q.push(nb);
+                }
+            }
         }
-        current.push_back(sorted[i]);
-    }
-    if (current.size() >= 2) paths.push_back(current);
+        if (component.size() < 2) continue;
 
+        // Reduce to centerline: sort by world X, take median world Y per column
+        std::sort(component.begin(), component.end(),
+                  [](const Vec2& a, const Vec2& b){ return a.x < b.x; });
+
+        std::vector<Vec2> centerline;
+        size_t i = 0;
+        while (i < component.size()) {
+            float colX = component[i].x;
+            size_t j = i;
+            while (j < component.size() && component[j].x == colX) ++j;
+            std::vector<float> ys;
+            ys.reserve(j - i);
+            for (size_t k = i; k < j; ++k) ys.push_back(component[k].y);
+            std::sort(ys.begin(), ys.end());
+            centerline.push_back({colX, ys[ys.size() / 2]});
+            i = j;
+        }
+
+        if (centerline.size() >= 2) paths.push_back(std::move(centerline));
+    }
     return paths;
 }
 
 // ─── Light placement ──────────────────────────────────────────────────────────
 void House::placeTierLights(const std::vector<std::vector<Vec2>>& paths,
-                             LaneType lane, int strands, float tangledProb)
+                             LaneType lane, int /*strands*/, float tangledProb)
 {
     std::uniform_real_distribution<float> tangledDist(0.0f, 1.0f);
-    int placed = 0;
+    // Create a LightString for every connected path in the mask — no cap,
+    // so every visually distinct run of lights becomes an interactive strand.
     for (const auto& path : paths) {
-        if (placed >= strands) break;
         bool tangled = tangledDist(s_houseRng) < tangledProb;
         auto ls = std::make_shared<LightString>(path, lane, tangled, m_houseIndex);
         m_lightStrings.push_back(ls);
-        ++placed;
     }
 }
 
-void House::placeGroundLights(const HouseMaskData& mask, int strands, float tangledProb)
+void House::placeGroundLights(const HouseMaskData& mask, int /*strands*/, float tangledProb)
 {
     std::uniform_real_distribution<float> tangledDist(0.0f, 1.0f);
-    int placed = 0;
     for (const auto& path : mask.redPaths) {
-        if (placed >= strands) break;
         bool tangled = tangledDist(s_houseRng) < tangledProb;
         auto ls = std::make_shared<LightString>(path, LaneType::Ground, tangled, m_houseIndex);
         m_lightStrings.push_back(ls);
-        ++placed;
     }
 }
 
 // ─── Bush placement ───────────────────────────────────────────────────────────
 void House::placeBushes(const std::vector<Vec2>& greenPoints,
-                         float /*worldX*/, float /*worldWidth*/)
+                         float /*worldX*/,
+                         const std::vector<BushAsset>* bushAssets)
 {
-    if (greenPoints.empty()) return;
+    if (greenPoints.empty() || !bushAssets || bushAssets->empty()) return;
 
+    // Cluster green pixels by proximity to find distinct bush slots
     float clusterRadius = 16.0f;
     std::vector<bool> used(greenPoints.size(), false);
-
-    static int s_bushIdx = 0;
-    std::uniform_real_distribution<float> typeDist(0.0f, 1.0f);
+    std::vector<float> clusterCenters;
 
     for (size_t i = 0; i < greenPoints.size(); ++i) {
         if (used[i]) continue;
@@ -251,11 +293,18 @@ void House::placeBushes(const std::vector<Vec2>& greenPoints,
                 }
             }
         }
+        clusterCenters.push_back(cx);
+    }
 
-        BushTree::Type type = (typeDist(s_houseRng) < 0.4f)
-                              ? BushTree::Type::PineTree
-                              : BushTree::Type::Bush;
-        auto bt = std::make_shared<BushTree>(cx, type, 0, 0.0f, s_bushIdx++);
+    // Limit to 5 bushes per house
+    if (clusterCenters.size() > 5) clusterCenters.resize(5);
+
+    static int s_bushIdx = 0;
+    std::uniform_int_distribution<size_t> assetDist(0, bushAssets->size() - 1);
+
+    for (float cx : clusterCenters) {
+        const BushAsset& asset = (*bushAssets)[assetDist(s_houseRng)];
+        auto bt = std::make_shared<BushTree>(cx, asset, 0.0f, s_bushIdx++);
         m_bushTrees.push_back(bt);
     }
 }

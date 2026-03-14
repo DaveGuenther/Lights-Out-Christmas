@@ -7,6 +7,7 @@
 #include "ui/UpgradeScreen.h"
 #include "ui/TownSquareBossScreen.h"
 #include "ui/YouWinScreen.h"
+#include "ui/ControlsScreen.h"
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
@@ -44,6 +45,17 @@ bool Game::init(const char* title) {
     if (!m_resources.init(m_renderer.sdl())) return false;
     SpriteRegistry::init(&m_resources);
     if (!m_input.init()) return false;
+
+    // Resolve the controls binding path using SDL's pref-path
+    {
+        char* prefPath = SDL_GetPrefPath("LightsOutChristmas", "LightsOutChristmas");
+        if (prefPath) {
+            m_controlsPath = std::string(prefPath) + "controls.json";
+            SDL_free(prefPath);
+        }
+    }
+    m_input.loadBindings(m_controlsPath);
+
     m_audio.init();  // non-fatal if audio fails
 
     // Load MP3 music for all gameplay levels (falls back to chiptune if file missing)
@@ -114,6 +126,17 @@ void Game::processEvents() {
             currentState() == GameState::MainMenu) {
             m_quit = true;
         }
+        // Toggle dev console with backtick
+        if (event.type == SDL_KEYDOWN &&
+            event.key.keysym.scancode == SDL_SCANCODE_GRAVE) {
+            m_devConsole.toggle();
+            continue;  // don't pass this key to the game
+        }
+        // While console is open, feed it input and suppress game input
+        if (m_devConsole.isOpen()) {
+            m_devConsole.handleEvent(event);
+            continue;
+        }
         m_input.handleEvent(event);
     }
 }
@@ -131,6 +154,7 @@ void Game::update(float dt) {
 void Game::render() {
     m_renderer.beginFrame();
     if (m_currentScreen) m_currentScreen->render();
+    m_devConsole.render();
     m_renderer.endFrame();
 }
 
@@ -179,6 +203,9 @@ void Game::buildScreenForState(GameState state) {
         break;
     case GameState::YouWin:
         m_currentScreen = std::make_unique<YouWinScreen>(*this);
+        break;
+    case GameState::Controls:
+        m_currentScreen = std::make_unique<ControlsScreen>(*this);
         break;
     default:
         m_currentScreen = std::make_unique<MainMenu>(*this);

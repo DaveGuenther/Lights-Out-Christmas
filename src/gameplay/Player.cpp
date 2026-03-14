@@ -5,77 +5,108 @@
 #include <SDL2/SDL.h>
 #include <cmath>
 #include <algorithm>
+#include <limits>
 #include <random>
 
 namespace LightsOut {
 
-static float smoothstep(float t) {
-    t = std::max(0.0f, std::min(1.0f, t));
-    return t * t * (3.0f - 2.0f * t);
-}
-
 Player::Player() : Entity(TAG_PLAYER) {
-    position.x = PLAYER_START_X;
-    position.y = LANE_GROUND_Y - PLAYER_HEIGHT * 0.5f;
-    width      = PLAYER_WIDTH;
-    height     = PLAYER_HEIGHT;
+    position.x  = PLAYER_START_X;
+    position.y  = GROUND_FLOOR_Y - PLAYER_HEIGHT;
+    width       = PLAYER_WIDTH;
+    height      = PLAYER_HEIGHT;
+    m_prevFeetY = position.y + PLAYER_HEIGHT;
     m_currentLane = LaneType::Ground;
-    m_targetLane  = LaneType::Ground;
+    m_isGrounded  = true;
 }
 
-void Player::moveUp() {
-    if (m_state == PlayerState::Jumping || m_state == PlayerState::Dead) return;
-    LaneType target = laneAbove(m_currentLane);
-    if (target == m_currentLane) return;
-
-    m_targetLane   = target;
-    m_state        = PlayerState::Jumping;
-    m_jumpStartY   = position.y;
-    m_jumpTargetY  = laneY(target) - height * 0.5f;
-    m_jumpProgress = 0.0f;
-}
-
-void Player::moveDown() {
-    if (m_state == PlayerState::Jumping || m_state == PlayerState::Dead) return;
-    LaneType target = laneBelow(m_currentLane);
-    if (target == m_currentLane) return;
-
-    m_targetLane   = target;
-    m_state        = PlayerState::Jumping;
-    m_jumpStartY   = position.y;
-    m_jumpTargetY  = laneY(target) - height * 0.5f;
-    m_jumpProgress = 0.0f;
-}
-
+// ─── Horizontal movement ──────────────────────────────────────────────────────
 void Player::moveHorizontal(float dir, float dt) {
     if (m_state == PlayerState::Dead) return;
+    m_facingLeft = (dir < 0.0f);
     m_screenX += dir * PLAYER_HORIZONTAL_SPEED * dt;
     m_screenX  = std::max(PLAYER_SCREEN_X_MIN, std::min(PLAYER_SCREEN_X_MAX, m_screenX));
 }
 
-void Player::tryBite(const std::vector<std::shared_ptr<LightString>>& nearbyStrings, float cameraX) {
-    if (m_state == PlayerState::Dead || m_state == PlayerState::Jumping) return;
+// ─── Jump ─────────────────────────────────────────────────────────────────────
+void Player::jump() {
+    if (m_state == PlayerState::Dead || m_state == PlayerState::Biting) return;
+    if (!m_isGrounded) return;
+
+    m_velocityY  = -JUMP_VELOCITY;
+    m_isGrounded = false;
+    m_state      = PlayerState::Airborne;
+}
+
+// ─── Drop through ─────────────────────────────────────────────────────────────
+void Player::drop() {
+    if (m_state == PlayerState::Dead) return;
+    if (!m_isGrounded) return;
+    if (m_currentLane == LaneType::Ground) return;
+
+    m_dropping        = true;
+    m_dropTimer       = DROP_IGNORE_DURATION;
+    m_dropIgnoreTier  = m_currentLane;
+    m_isGrounded      = false;
+    m_velocityY       = 40.0f;
+    m_state           = PlayerState::Airborne;
+}
+
+// ─── Drop timer tick (called by GameWorld) ────────────────────────────────────
+void Player::tickDropTimer(float dt) {
+    if (!m_dropping) return;
+    m_dropTimer -= dt;
+    if (m_dropTimer <= 0.0f) {
+        m_dropping  = false;
+        m_dropTimer = 0.0f;
+    }
+}
+
+// ─── Platform landing (called by GameWorld resolver) ─────────────────────────
+void Player::landOnPlatform(float platformY, LaneType tier) {
+    position.y    = platformY - height;
+    m_velocityY   = 0.0f;
+    m_isGrounded  = true;
+    m_currentLane = tier;
+    if (m_state == PlayerState::Airborne) m_state = PlayerState::Running;
+
+    if (m_dropping && tier != m_dropIgnoreTier) {
+        m_dropping  = false;
+        m_dropTimer = 0.0f;
+    }
+}
+
+// ─── Bite ─────────────────────────────────────────────────────────────────────
+void Player::tryBite(const std::vector<std::shared_ptr<LightString>>& nearbyStrings,
+                     float cameraX)
+{
+    if (m_state == PlayerState::Dead || m_state == PlayerState::Airborne) return;
     m_state          = PlayerState::Biting;
     m_animTimer      = 0.0f;
     m_biteTimer      = 0.0f;
     m_biteFrameTimer = 0.0f;
     m_biteFrame      = 0;
 
+    // Player bite zone: horizontal range around player center
     float playerScreenX = m_screenX + width * 0.5f;
+    float biteLeft  = playerScreenX - PLAYER_BITE_RANGE;
+    float biteRight = playerScreenX + PLAYER_BITE_RANGE;
+
     LightString* closest = nullptr;
-    float closestDist    = PLAYER_BITE_RANGE * 2.0f;
+    float closestDist    = std::numeric_limits<float>::max();
 
     for (const auto& ls : nearbyStrings) {
         if (ls->isFullyOff() || ls->alive == false) continue;
-
-        // Only bite strings on the same tier as the player
         if (ls->lane() != m_currentLane) continue;
 
-        // X-only proximity: compare screen-space X of string center to player
-        float lsScreenX = (ls->position.x + ls->width * 0.5f) - cameraX;
-        float dx = std::abs(playerScreenX - lsScreenX);
-        if (dx > PLAYER_BITE_RANGE) continue;
+        // Check if player bite zone overlaps [strandLeft, strandRight]
+        float strandLeft  = ls->position.x - cameraX;
+        float strandRight = strandLeft + ls->width;
+        if (biteRight < strandLeft || biteLeft > strandRight) continue;
 
+        // Proximity: closest point on strand to player center
+        float clampedX = std::max(strandLeft, std::min(strandRight, playerScreenX));
+        float dx = std::abs(playerScreenX - clampedX);
         if (dx < closestDist) {
             closestDist = dx;
             closest     = ls.get();
@@ -84,9 +115,6 @@ void Player::tryBite(const std::vector<std::shared_ptr<LightString>>& nearbyStri
 
     if (closest) {
         if (isSuperChomp()) {
-            // Bite repeatedly until the cascade starts (bite() returns false once
-            // cascading — the cascade then plays out via update(dt)).
-            // Without this break, the loop spins forever while m_cascading==true.
             while (!closest->isFullyOff()) {
                 if (!closest->bite()) break;
             }
@@ -96,58 +124,47 @@ void Player::tryBite(const std::vector<std::shared_ptr<LightString>>& nearbyStri
     }
 }
 
+// ─── Update ───────────────────────────────────────────────────────────────────
 void Player::update(float dt) {
     if (m_state == PlayerState::Dead) return;
 
     updateTimers(dt);
 
-    if (m_state == PlayerState::Jumping) {
-        updateLaneTransition(dt);
+    // Apply gravity when airborne
+    if (!m_isGrounded) {
+        m_velocityY += GRAVITY * dt;
+        m_velocityY  = std::min(m_velocityY, GRAVITY);  // cap fall speed
     }
 
-    // Biting animation: alternate two frames every 0.1s, return to idle after 1.0s
+    m_prevFeetY = position.y + height;
+    position.y += m_velocityY * dt;
+
+    // Bite animation
     if (m_state == PlayerState::Biting) {
-        m_biteTimer += dt;
+        m_biteTimer      += dt;
         m_biteFrameTimer += dt;
         if (m_biteFrameTimer >= 0.1f) {
             m_biteFrameTimer = 0.0f;
-            m_biteFrame      = 1 - m_biteFrame;  // toggle 0 ↔ 1
+            m_biteFrame      = 1 - m_biteFrame;
         }
         if (m_biteTimer >= 0.2f) {
-            m_state          = PlayerState::Running;
+            m_state          = m_isGrounded ? PlayerState::Running : PlayerState::Airborne;
             m_biteTimer      = 0.0f;
             m_biteFrameTimer = 0.0f;
             m_biteFrame      = 0;
         }
     }
 
-    // Slippage on icy lanes
-    if (laneInfo(m_currentLane).slippery && m_slipTimer <= 0.0f) {
-        std::uniform_real_distribution<float> slip(0.0f, 1.0f);
-        // Occasional random slip — handled at GameWorld level
-        m_slipTimer = 3.0f;
-    } else {
-        m_slipTimer -= dt;
-    }
-
     updateAnimation(dt);
 }
 
-void Player::updateLaneTransition(float dt) {
-    float jumpSpeed = PLAYER_JUMP_SPEED + m_upgrades.jumpHeight * 30.0f;
-    float dist      = std::abs(m_jumpTargetY - m_jumpStartY);
-    if (dist < 0.001f) dist = 1.0f;
-
-    m_jumpProgress += dt * jumpSpeed / dist;
-    m_jumpProgress  = std::min(m_jumpProgress, 1.0f);
-
-    position.y = m_jumpStartY + (m_jumpTargetY - m_jumpStartY) * smoothstep(m_jumpProgress);
-
-    if (m_jumpProgress >= 1.0f) {
-        m_currentLane = m_targetLane;
-        position.y    = m_jumpTargetY;
-        m_state       = PlayerState::Idle;
-    }
+void Player::setMoving(bool moving) {
+    // Only affects grounded states; airborne/biting/dead manage their own transitions
+    if (m_state == PlayerState::Dead     ||
+        m_state == PlayerState::Airborne ||
+        m_state == PlayerState::Biting   ||
+        m_state == PlayerState::Stunned) return;
+    m_state = moving ? PlayerState::Running : PlayerState::Idle;
 }
 
 void Player::updateTimers(float dt) {
@@ -162,23 +179,29 @@ void Player::updateTimers(float dt) {
 }
 
 void Player::updateAnimation(float dt) {
+    bool idle   = (m_state == PlayerState::Idle);
+    float speed = idle ? 3.0f : m_animSpeed;   // idle: 3fps, running: 8fps
+    int   frames = idle ? 2 : 4;
     m_animTimer += dt;
-    float fps = m_animSpeed;
-    if (m_animTimer > 1.0f / fps) {
+    if (m_animTimer > 1.0f / speed) {
         m_animTimer = 0.0f;
-        m_animFrame = (m_animFrame + 1) % 4;
+        m_animFrame = (m_animFrame + 1) % frames;
     }
 }
 
+// ─── Respawn ──────────────────────────────────────────────────────────────────
 void Player::respawn() {
-    m_state        = PlayerState::Idle;
-    m_currentLane  = LaneType::Ground;
-    m_targetLane   = LaneType::Ground;
-    position.y     = laneY(LaneType::Ground) - height * 0.5f;
-    m_screenX      = PLAYER_START_X;
-    m_jumpProgress = 0.0f;
+    m_state       = PlayerState::Running;
+    m_facingLeft  = false;
+    m_currentLane = LaneType::Ground;
+    position.y    = GROUND_FLOOR_Y - height;
+    m_prevFeetY   = GROUND_FLOOR_Y;
+    m_screenX     = PLAYER_START_X;
+    m_velocityY   = 0.0f;
+    m_isGrounded  = true;
+    m_dropping    = false;
+    m_dropTimer   = 0.0f;
 
-    // Drop any active power-ups (died, so they're lost)
     m_speedBoostTimer = 0.0f;  m_speedBoostMult = 1.0f;
     m_shadowTimer     = 0.0f;
     m_superChompTimer = 0.0f;
@@ -189,10 +212,10 @@ void Player::respawn() {
     m_biteFrameTimer = 0.0f;
     m_biteFrame      = 0;
 
-    // Brief invincibility so the player can reorient
     m_invincibleTimer = PLAYER_RESPAWN_INVINCIBILITY;
 }
 
+// ─── Power-ups ────────────────────────────────────────────────────────────────
 void Player::applySpeedBoost(float mult, float dur)  { m_speedBoostMult = mult; m_speedBoostTimer = dur; }
 void Player::applyInvincibility(float dur)           { m_invincibleTimer = dur; }
 void Player::applyShadowMode(float dur)              { m_shadowTimer = dur; }
@@ -204,22 +227,16 @@ float Player::frenzySlowFactor() const {
     return (m_frenzyTimer > 0.0f) ? FRENZY_SLOW_FACTOR : 1.0f;
 }
 
+// ─── Rendering ────────────────────────────────────────────────────────────────
 void Player::render(SDL_Renderer* renderer, float /*cameraX*/) {
     float screenX = m_screenX;
     float screenY = position.y;
 
-    if (isShadowMode()) {
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    }
-
-    // Double tail: draw a ghost copy slightly behind
-    if (isDoubleTail()) {
-        drawSquirrel(renderer, screenX - 12.0f, screenY + 2.0f, true);
-    }
+    if (isShadowMode()) SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    if (isDoubleTail()) drawSquirrel(renderer, screenX - 12.0f, screenY + 2.0f, true);
 
     drawSquirrel(renderer, screenX, screenY, isShadowMode());
 
-    // Invincibility: flashing white outline
     if (isInvincible()) {
         Uint32 ticks = SDL_GetTicks();
         if ((ticks / 100) % 2 == 0) {
@@ -233,19 +250,17 @@ void Player::render(SDL_Renderer* renderer, float /*cameraX*/) {
     renderPowerUpGlow(renderer, screenX);
 }
 
-// Returns the sprite name for the current player state and animation frame.
-// Squirrel sprites face LEFT in the asset sheet; we flip horizontally so the
-// character faces RIGHT (direction of travel, since the world scrolls left).
 static const char* squirrelSpriteName(PlayerState state, int animFrame, int biteFrame) {
     switch (state) {
-    case PlayerState::Dead:    return "squirrel_dead";
-    case PlayerState::Stunned: return "squirrel_stunned";
-    case PlayerState::Jumping: return "squirrel_jump";
+    case PlayerState::Idle:
+        return (animFrame % 2 == 0) ? "squirrel_idle_0" : "squirrel_idle_1";
+    case PlayerState::Dead:     return "squirrel_dead";
+    case PlayerState::Stunned:  return "squirrel_stunned";
+    case PlayerState::Airborne: return "squirrel_jump";
     case PlayerState::Biting:
         return (biteFrame == 0) ? "squirrel_bite_0" : "squirrel_bite_1";
     default: break;
     }
-    // Idle / Running / anything else — show run cycle
     static const char* run[] = {
         "squirrel_run_0", "squirrel_run_1", "squirrel_run_2", "squirrel_run_3"
     };
@@ -255,22 +270,16 @@ static const char* squirrelSpriteName(PlayerState state, int animFrame, int bite
 void Player::drawSquirrel(SDL_Renderer* renderer, float x, float y, bool shadow) const {
     const char* spriteName = squirrelSpriteName(m_state, m_animFrame, m_biteFrame);
 
-    // Determine sprite height to bottom-align over the hitbox
-    // (most squirrel sprites are 24x18; dead=26x12, stunned/jump=24x20)
     int sw = 0, sh = 0;
     SpriteRegistry::get(spriteName, &sw, &sh);
-    if (sw == 0) sh = 18;  // fallback
+    if (sw == 0) sh = 18;
 
-    // Bottom-align sprite to entity bottom (position.y + PLAYER_HEIGHT)
-    // and center horizontally over the hitbox
     float drawX = x + (PLAYER_WIDTH  - static_cast<float>(sw)) * 0.5f;
     float drawY = y + PLAYER_HEIGHT - static_cast<float>(sh);
 
     uint8_t alpha = shadow ? 80 : 255;
-
-    SpriteRegistry::draw(renderer, spriteName,
-                         drawX, drawY, 0.f, 0.f,
-                         alpha);
+    SDL_RendererFlip flip = m_facingLeft ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
+    SpriteRegistry::draw(renderer, spriteName, drawX, drawY, 0.f, 0.f, alpha, flip);
 }
 
 void Player::renderPowerUpGlow(SDL_Renderer* renderer, float screenX) const {
