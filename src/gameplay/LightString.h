@@ -18,7 +18,13 @@ struct LightBulb {
 
 class LightString : public Entity {
 public:
+    // Horizontal string (legacy / TownSquareBoss use)
     LightString(float worldX, float worldY, float length,
+                bool tangled = false, int houseIndex = -1,
+                LaneType lane = LaneType::Ground);
+
+    // Path-following string: bulbs placed at equal arc-length intervals
+    LightString(const std::vector<Vec2>& path, LaneType lane,
                 bool tangled = false, int houseIndex = -1);
 
     void update(float dt) override;
@@ -34,6 +40,7 @@ public:
     int  lightCount() const { return static_cast<int>(m_bulbs.size()); }
     int  bitesRequired() const { return m_bitesRequired; }
     int  bitesLanded() const { return m_bitesLanded; }
+    LaneType lane() const { return m_lane; }
 
     // Called by GameWorld after all lights in a house go dark
     std::function<void(int houseIndex)> onHouseBlackout;
@@ -46,10 +53,11 @@ private:
     void updateSparks(float dt);
 
     std::vector<LightBulb> m_bulbs;
-    bool  m_tangled;
-    int   m_houseIndex;
-    int   m_bitesRequired;
-    int   m_bitesLanded = 0;
+    bool     m_tangled;
+    int      m_houseIndex;
+    LaneType m_lane;
+    int      m_bitesRequired;
+    int      m_bitesLanded = 0;
 
     // Cascade state
     bool  m_cascading = false;

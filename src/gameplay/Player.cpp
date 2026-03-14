@@ -55,10 +55,12 @@ void Player::moveHorizontal(float dir, float dt) {
 
 void Player::tryBite(const std::vector<std::shared_ptr<LightString>>& nearbyStrings, float cameraX) {
     if (m_state == PlayerState::Dead || m_state == PlayerState::Jumping) return;
-    m_state = PlayerState::Biting;
-    m_animTimer = 0.0f;
+    m_state          = PlayerState::Biting;
+    m_animTimer      = 0.0f;
+    m_biteTimer      = 0.0f;
+    m_biteFrameTimer = 0.0f;
+    m_biteFrame      = 0;
 
-    float playerCenterY = position.y + height * 0.5f;
     float playerScreenX = m_screenX + width * 0.5f;
     LightString* closest = nullptr;
     float closestDist    = PLAYER_BITE_RANGE * 2.0f;
@@ -66,15 +68,13 @@ void Player::tryBite(const std::vector<std::shared_ptr<LightString>>& nearbyStri
     for (const auto& ls : nearbyStrings) {
         if (ls->isFullyOff() || ls->alive == false) continue;
 
-        // Convert light world X to screen X for comparison with player screen X
+        // Only bite strings on the same tier as the player
+        if (ls->lane() != m_currentLane) continue;
+
+        // X-only proximity: compare screen-space X of string center to player
         float lsScreenX = (ls->position.x + ls->width * 0.5f) - cameraX;
         float dx = std::abs(playerScreenX - lsScreenX);
         if (dx > PLAYER_BITE_RANGE) continue;
-
-        // Check Y proximity (within PLAYER_BITE_RANGE vertically)
-        float lsY = ls->position.y;
-        float dy  = std::abs(playerCenterY - lsY);
-        if (dy > PLAYER_BITE_RANGE) continue;
 
         if (dx < closestDist) {
             closestDist = dx;
@@ -105,12 +105,19 @@ void Player::update(float dt) {
         updateLaneTransition(dt);
     }
 
-    // Biting animation times out
+    // Biting animation: alternate two frames every 0.1s, return to idle after 1.0s
     if (m_state == PlayerState::Biting) {
-        m_animTimer += dt;
-        if (m_animTimer > 0.25f) {
-            m_state     = PlayerState::Idle;
-            m_animTimer = 0.0f;
+        m_biteTimer += dt;
+        m_biteFrameTimer += dt;
+        if (m_biteFrameTimer >= 0.1f) {
+            m_biteFrameTimer = 0.0f;
+            m_biteFrame      = 1 - m_biteFrame;  // toggle 0 ↔ 1
+        }
+        if (m_biteTimer >= 0.2f) {
+            m_state          = PlayerState::Running;
+            m_biteTimer      = 0.0f;
+            m_biteFrameTimer = 0.0f;
+            m_biteFrame      = 0;
         }
     }
 
@@ -178,6 +185,10 @@ void Player::respawn() {
     m_frenzyTimer     = 0.0f;
     m_doubleTailTimer = 0.0f;
 
+    m_biteTimer      = 0.0f;
+    m_biteFrameTimer = 0.0f;
+    m_biteFrame      = 0;
+
     // Brief invincibility so the player can reorient
     m_invincibleTimer = PLAYER_RESPAWN_INVINCIBILITY;
 }
@@ -225,12 +236,13 @@ void Player::render(SDL_Renderer* renderer, float /*cameraX*/) {
 // Returns the sprite name for the current player state and animation frame.
 // Squirrel sprites face LEFT in the asset sheet; we flip horizontally so the
 // character faces RIGHT (direction of travel, since the world scrolls left).
-static const char* squirrelSpriteName(PlayerState state, int animFrame) {
+static const char* squirrelSpriteName(PlayerState state, int animFrame, int biteFrame) {
     switch (state) {
     case PlayerState::Dead:    return "squirrel_dead";
     case PlayerState::Stunned: return "squirrel_stunned";
-    case PlayerState::Biting:  return "squirrel_bite";
     case PlayerState::Jumping: return "squirrel_jump";
+    case PlayerState::Biting:
+        return (biteFrame == 0) ? "squirrel_bite_0" : "squirrel_bite_1";
     default: break;
     }
     // Idle / Running / anything else — show run cycle
@@ -241,7 +253,7 @@ static const char* squirrelSpriteName(PlayerState state, int animFrame) {
 }
 
 void Player::drawSquirrel(SDL_Renderer* renderer, float x, float y, bool shadow) const {
-    const char* spriteName = squirrelSpriteName(m_state, m_animFrame);
+    const char* spriteName = squirrelSpriteName(m_state, m_animFrame, m_biteFrame);
 
     // Determine sprite height to bottom-align over the hitbox
     // (most squirrel sprites are 24x18; dead=26x12, stunned/jump=24x20)
@@ -256,10 +268,9 @@ void Player::drawSquirrel(SDL_Renderer* renderer, float x, float y, bool shadow)
 
     uint8_t alpha = shadow ? 80 : 255;
 
-    // Sprites face left in the sheet — flip to face right (direction of travel)
     SpriteRegistry::draw(renderer, spriteName,
                          drawX, drawY, 0.f, 0.f,
-                         alpha, SDL_FLIP_HORIZONTAL);
+                         alpha);
 }
 
 void Player::renderPowerUpGlow(SDL_Renderer* renderer, float screenX) const {

@@ -5,27 +5,27 @@ Sprite Asset List — Lights Out Christmas
   ┌──────────────────┬───────┬───────────────────────────────────────────────────────┐
   │      Sprite      │ Size  │                         Notes                         │
   ├──────────────────┼───────┼───────────────────────────────────────────────────────┤
-  │ squirrel_idle_0  │ 12×14 │ Standing still, weight on both feet                   │
+  │ squirrel_idle_0  │ 32×32 │ Standing still, weight on both feet                   │
   ├──────────────────┼───────┼───────────────────────────────────────────────────────┤
-  │ squirrel_idle_1  │ 12×14 │ Subtle breathing frame (slight body rise)             │
+  │ squirrel_idle_1  │ 32×32 │ Subtle breathing frame (slight body rise)             │
   ├──────────────────┼───────┼───────────────────────────────────────────────────────┤
-  │ squirrel_run_0   │ 12×14 │ Left legs forward                                     │
+  │ squirrel_run_0   │ 32×32 │ Left legs forward                                     │
   ├──────────────────┼───────┼───────────────────────────────────────────────────────┤
-  │ squirrel_run_1   │ 12×14 │ Mid-stride                                            │
+  │ squirrel_run_1   │ 32x32 │ Mid-stride                                            │
   ├──────────────────┼───────┼───────────────────────────────────────────────────────┤
-  │ squirrel_run_2   │ 12×14 │ Right legs forward                                    │
+  │ squirrel_run_2   │ 32x32 │ Right legs forward                                    │
   ├──────────────────┼───────┼───────────────────────────────────────────────────────┤
-  │ squirrel_run_3   │ 12×14 │ Mid-stride return                                     │  
+  │ squirrel_run_3   │ 32x32 │ Mid-stride return                                     │  
   ├──────────────────┼───────┼───────────────────────────────────────────────────────┤  
-  │ squirrel_jump    │ 12×16 │ All four legs tucked, tail up                         │  
+  │ squirrel_jump    │ 32x32 │ All four legs tucked, tail up                         │  
   ├──────────────────┼───────┼───────────────────────────────────────────────────────┤  
-  │ squirrel_bite    │ 14×14 │ Mouth wide open, leaning forward                      │  
+  │ squirrel_bite    │ 32x32 │ Mouth wide open, leaning forward                      │  
   ├──────────────────┼───────┼───────────────────────────────────────────────────────┤  
-  │ squirrel_stunned │ 12×14 │ Stars or x-eyes above head                            │  
+  │ squirrel_stunned │ 32x32 │ Stars or x-eyes above head                            │  
   ├──────────────────┼───────┼───────────────────────────────────────────────────────┤  
-  │ squirrel_dead    │ 14×10 │ Flopped sideways                                      │  
+  │ squirrel_dead    │ 32x32 │ Flopped sideways                                      │  
   ├──────────────────┼───────┼───────────────────────────────────────────────────────┤  
-  │ squirrel_shadow  │ 12×14 │ Dark, semi-transparent silhouette (for Shadow Mode    │  
+  │ squirrel_shadow  │ 32x32 │ Dark, semi-transparent silhouette (for Shadow Mode    │  
   │                  │       │ power-up)                                             │  
   └──────────────────┴───────┴───────────────────────────────────────────────────────┘  
 

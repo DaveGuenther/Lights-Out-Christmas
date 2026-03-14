@@ -5,12 +5,12 @@ namespace LightsOut {
 
 // ─── Display ─────────────────────────────────────────────────────────────────
 // Steam Deck native: 1280x800 (16:10)
-// Pixel art base:    320x200 scaled 4x
+// Pixel art base:    640x400 scaled 2x
 inline constexpr int SCREEN_WIDTH  = 1280;
 inline constexpr int SCREEN_HEIGHT = 800;
-inline constexpr int RENDER_WIDTH  = 320;
-inline constexpr int RENDER_HEIGHT = 200;
-inline constexpr int PIXEL_SCALE   = 4;
+inline constexpr int RENDER_WIDTH  = 640;
+inline constexpr int RENDER_HEIGHT = 400;
+inline constexpr int PIXEL_SCALE   = 2;
 
 // ─── Timing ──────────────────────────────────────────────────────────────────
 inline constexpr float TARGET_FPS      = 60.0f;
@@ -23,19 +23,19 @@ inline constexpr float SCROLL_SPEED_INCREASE = 2.5f;    // per level
 inline constexpr float MAX_SCROLL_SPEED      = 120.0f;
 
 // ─── Lanes (Y = pixel position in render space, top-down) ────────────────────
-// Lane 0: Rooftop  (y 95)  — squirrel runs along the roofline
-// Lane 1: Fence    (y 128) — porch / fence level
-// Lane 2: Ground   (y 160) — street / garden level
+// Lane 0: Rooftop  (y 208) — 2nd story gutter tier (blue mask track)
+// Lane 1: Fence    (y 272) — 1st story gutter tier (yellow mask track)
+// Lane 2: Ground   (y 368) — ground tier (red path + green area lights)
 inline constexpr int   NUM_LANES          = 3;
-inline constexpr float LANE_ROOFTOP_Y     = 95.0f;
-inline constexpr float LANE_FENCE_Y       = 128.0f;
-inline constexpr float LANE_GROUND_Y      = 160.0f;
+inline constexpr float LANE_ROOFTOP_Y     = 208.0f;
+inline constexpr float LANE_FENCE_Y       = 272.0f;
+inline constexpr float LANE_GROUND_Y      = 368.0f;
 
 // ─── Player ──────────────────────────────────────────────────────────────────
 inline constexpr float PLAYER_START_X          = 50.0f;   // default screen X on spawn
-inline constexpr float PLAYER_HORIZONTAL_SPEED = 55.0f;   // px/sec screen-space, left/right move
-inline constexpr float PLAYER_SCREEN_X_MIN     = 20.0f;   // leftmost screen position allowed
-inline constexpr float PLAYER_SCREEN_X_MAX     = 160.0f;  // rightmost screen position allowed
+inline constexpr float PLAYER_HORIZONTAL_SPEED = 120.0f;  // px/sec screen-space, left/right move
+inline constexpr float PLAYER_SCREEN_X_MIN     = 0.0f;    // leftmost screen position allowed
+inline constexpr float PLAYER_SCREEN_X_MAX     = 620.0f;  // rightmost (RENDER_WIDTH - PLAYER_WIDTH)
 inline constexpr float PLAYER_SPEED            = 0.0f;    // world scrolls; player moves relative
 inline constexpr float PLAYER_JUMP_SPEED  = 120.0f;  // vertical speed when jumping between lanes
 inline constexpr float PLAYER_WIDTH       = 12.0f;
@@ -57,12 +57,13 @@ inline constexpr float DARKNESS_FILL_PER_LIGHT  = 0.005f;
 inline constexpr float DARKNESS_FILL_PER_HOUSE  = 0.05f;
 
 // ─── House generation ────────────────────────────────────────────────────────
-inline constexpr float HOUSE_MIN_GAP    = 20.0f;    // pixels between houses
-inline constexpr float HOUSE_MAX_GAP    = 50.0f;
-inline constexpr float HOUSE_MIN_WIDTH  = 55.0f;
-inline constexpr float HOUSE_MAX_WIDTH  = 80.0f;
-inline constexpr float HOUSE_HEIGHT     = 65.0f;
-inline constexpr float HOUSE_GROUND_Y   = 165.0f;   // bottom of house
+inline constexpr float HOUSE_MIN_GAP      = 30.0f;   // pixels between houses
+inline constexpr float HOUSE_MAX_GAP      = 80.0f;
+inline constexpr float HOUSE_SMALL_WIDTH  = 256.0f;  // small_house sprite width
+inline constexpr float HOUSE_MEDIUM_WIDTH = 320.0f;  // medium_house sprite width
+inline constexpr float HOUSE_LARGE_WIDTH  = 384.0f;  // large_house sprite width
+inline constexpr float HOUSE_HEIGHT       = 320.0f;  // all house sprites are 320px tall
+inline constexpr float HOUSE_GROUND_Y     = 400.0f;  // bottom of house = bottom of screen
 
 // ─── Light strings ───────────────────────────────────────────────────────────
 inline constexpr float LIGHT_BULB_SIZE     = 3.0f;
@@ -95,7 +96,7 @@ inline constexpr float FRENZY_SLOW_FACTOR        = 0.5f;  // world slows to this
 // ─── Particles ───────────────────────────────────────────────────────────────
 inline constexpr int   SPARK_PARTICLE_COUNT = 8;
 inline constexpr float SPARK_SPEED          = 30.0f;
-inline constexpr int   SNOW_PARTICLES       = 60;
+inline constexpr int   SNOW_PARTICLES       = 200;
 inline constexpr float SNOW_FALL_SPEED      = 12.0f;
 
 // ─── Audio ───────────────────────────────────────────────────────────────────

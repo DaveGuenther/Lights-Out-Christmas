@@ -103,6 +103,11 @@ private:
     int       m_animFrame    = 0;
     float     m_animSpeed    = 8.0f;  // frames per second
 
+    // Bite animation
+    float     m_biteTimer      = 0.0f;  // total time spent biting (resets to running at 1.0s)
+    float     m_biteFrameTimer = 0.0f;  // time in current bite frame (toggles every 0.1s)
+    int       m_biteFrame      = 0;     // 0 or 1
+
     SquirrelUpgrades m_upgrades;
 
     // Slippery counter (for ice-patch lanes)

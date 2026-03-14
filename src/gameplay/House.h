@@ -1,23 +1,34 @@
 #pragma once
 #include "Entity.h"
 #include "LightString.h"
+#include "BushTree.h"
+#include "core/HouseAssetLoader.h"
 #include <vector>
 #include <memory>
 
 namespace LightsOut {
 
 enum class HouseStyle {
-    Simple,          // basic house
-    Elaborate,       // rich neighborhood
-    TownSquare       // large community display
+    Simple,
+    Elaborate,
+    TownSquare
+};
+
+// Parsed data from the mask image: world-space point lists for each tier
+struct HouseMaskData {
+    std::vector<std::vector<Vec2>> bluePaths;    // top tier (Rooftop lane)
+    std::vector<std::vector<Vec2>> yellowPaths;  // middle tier (Fence lane)
+    std::vector<std::vector<Vec2>> redPaths;     // ground tier path lights
+    std::vector<Vec2>              greenPoints;  // ground tier bush areas
 };
 
 class House : public Entity {
 public:
-    // roofStrands/windowStrands/porchStrands: light strings per tier (0 = no lights on that tier)
-    House(float worldX, float worldWidth, HouseStyle style,
-          int houseIndex, int roofStrands, int windowStrands, int porchStrands,
-          float tangledProb);
+    // Sprite-based constructor (new system)
+    House(float worldX, HouseStyle style, int houseIndex,
+          const HouseAsset& asset,
+          bool hasTopTier, bool hasMiddleTier, bool hasGroundTier,
+          int strands, float tangledProb, SDL_Renderer* renderer = nullptr);
 
     void update(float dt) override;
     void render(SDL_Renderer* renderer, float cameraX) override;
@@ -25,17 +36,17 @@ public:
     bool isFullyDark() const;
     int  houseIndex() const { return m_houseIndex; }
 
-    // Porch light
     bool  porchLightOn() const { return m_porchLightOn; }
-    Vec2  porchLightPos() const;  // world-space center of porch light
+    Vec2  porchLightPos() const;
 
     std::vector<std::shared_ptr<LightString>>& lightStrings() { return m_lightStrings; }
+    std::vector<std::shared_ptr<BushTree>>&    bushTrees()    { return m_bushTrees; }
 
-    // Triggered when player gets near with a homeowner on alert
     void triggerPorchLight();
     void resetPorchLight(float delaySeconds);
 
-    // Color palette for this house's decorations
+    float spriteWidth() const { return m_spriteWidth; }
+
     Color wallColor;
     Color roofColor;
 
@@ -45,13 +56,27 @@ private:
     bool       m_porchLightOn    = false;
     float      m_porchResetTimer = 0.0f;
     bool       m_porchResetting  = false;
+    float      m_spriteWidth     = 256.0f;
+    std::string m_spriteName;  // key registered with SpriteRegistry
 
     std::vector<std::shared_ptr<LightString>> m_lightStrings;
+    std::vector<std::shared_ptr<BushTree>>    m_bushTrees;
 
-    void placeRoofLights(int count, float tangledProb);
-    void placeWindowLights(int count, float tangledProb);
-    void placePorchLights(int count, float tangledProb);
-    void drawHouseBody(SDL_Renderer* renderer, float screenX) const;
+    // Parse the mask image and return paths/areas in world space
+    HouseMaskData parseMask(const std::string& maskPath,
+                            float worldX, float worldWidth,
+                            SDL_Renderer* renderer = nullptr) const;
+
+    // Extract connected path segments from a set of same-colour pixels
+    std::vector<std::vector<Vec2>> extractPaths(
+        const std::vector<Vec2>& pixels, float worldX,
+        float worldWidth, float maskImgWidth) const;
+
+    void placeTierLights(const std::vector<std::vector<Vec2>>& paths,
+                         LaneType lane, int strands, float tangledProb);
+    void placeGroundLights(const HouseMaskData& mask, int strands, float tangledProb);
+    void placeBushes(const std::vector<Vec2>& greenPoints, float worldX, float worldWidth);
+
     void drawPorchLight(SDL_Renderer* renderer, float screenX) const;
 };
 

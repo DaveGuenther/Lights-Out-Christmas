@@ -10,6 +10,7 @@
 #include "powerups/PowerUp.h"
 #include "core/Constants.h"
 #include "core/Types.h"
+#include "core/HouseAssetLoader.h"
 
 #include <vector>
 #include <memory>
@@ -78,6 +79,7 @@ private:
     Player m_player;
     ScoreSystem m_score;
     DarknessManager m_darkness;
+    HouseAssetLoader m_houseAssets;
 
     // The active inventory power-up (collected but not yet used)
     std::unique_ptr<PowerUp> m_heldPowerUp;
@@ -104,6 +106,10 @@ private:
     // Snow particles (rendered by GameWorld, not a separate system)
     struct SnowFlake { Vec2 pos; float speed; float drift; };
     std::vector<SnowFlake> m_snow;
+
+    // Static star positions (generated once at construction)
+    struct Star { float x, y; uint8_t brightness; };
+    std::vector<Star> m_stars;
     void initSnow();
     void updateSnow(float dt);
     void renderSnow(SDL_Renderer* renderer) const;

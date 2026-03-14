@@ -129,8 +129,10 @@ set(CORE_SOURCES
     src/core/Game.cpp
     src/core/InputManager.cpp
     src/core/AudioManager.cpp
+    src/core/ChiptunePlayer.cpp
     src/core/ResourceManager.cpp
     src/core/SpriteRegistry.cpp
+    src/core/HouseAssetLoader.cpp
 )
 
 set(GAMEPLAY_SOURCES
@@ -194,6 +196,7 @@ add_executable(LightsOutChristmas ${ALL_SOURCES})
 
 target_include_directories(LightsOutChristmas PRIVATE
     ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/vendor
 )
 
 # On Windows SDL2main must precede SDL2 in the link order: SDL2main.a

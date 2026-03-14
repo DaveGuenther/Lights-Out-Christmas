@@ -46,6 +46,16 @@ bool Game::init(const char* title) {
     if (!m_input.init()) return false;
     m_audio.init();  // non-fatal if audio fails
 
+    // Load MP3 music for all gameplay levels (falls back to chiptune if file missing)
+    {
+        std::string mp3 = m_resources.assetPath("music/sugar_plum_fairy.mp3");
+        m_audio.loadMusic(Music::Level1, mp3);
+        m_audio.loadMusic(Music::Level2, mp3);
+        m_audio.loadMusic(Music::Level3, mp3);
+        m_audio.loadMusic(Music::Level4, mp3);
+        m_audio.loadMusic(Music::Level5, mp3);
+    }
+
     // Start at main menu
     m_stateStack.push(GameState::MainMenu);
     buildScreenForState(GameState::MainMenu);

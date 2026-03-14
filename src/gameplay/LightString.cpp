@@ -31,10 +31,11 @@ static int randomLightColorIdx() {
 }
 
 LightString::LightString(float worldX, float worldY, float length,
-                         bool tangled, int houseIndex)
+                         bool tangled, int houseIndex, LaneType lane)
     : Entity(TAG_LIGHT)
     , m_tangled(tangled)
     , m_houseIndex(houseIndex)
+    , m_lane(lane)
     , m_bitesRequired(tangled ? LIGHT_BITES_TANGLED : 1)
 {
     position.x = worldX;
@@ -49,6 +50,69 @@ LightString::LightString(float worldX, float worldY, float length,
     for (int i = 0; i < count; ++i) {
         LightBulb b;
         b.position = {worldX + static_cast<float>(i) * LIGHT_SPACING, worldY};
+        b.colorIdx = randomLightColorIdx();
+        b.color    = k_lightPalette[b.colorIdx];
+        b.state    = LightState::On;
+        m_bulbs.push_back(b);
+    }
+}
+
+LightString::LightString(const std::vector<Vec2>& path, LaneType lane,
+                         bool tangled, int houseIndex)
+    : Entity(TAG_LIGHT)
+    , m_tangled(tangled)
+    , m_houseIndex(houseIndex)
+    , m_lane(lane)
+    , m_bitesRequired(tangled ? LIGHT_BITES_TANGLED : 1)
+{
+    if (path.size() < 2) return;
+
+    // Build cumulative arc-length table
+    std::vector<float> cumDist(path.size(), 0.0f);
+    for (size_t i = 1; i < path.size(); ++i) {
+        float dx = path[i].x - path[i-1].x;
+        float dy = path[i].y - path[i-1].y;
+        cumDist[i] = cumDist[i-1] + std::sqrt(dx*dx + dy*dy);
+    }
+    float totalLen = cumDist.back();
+    if (totalLen < 0.001f) return;
+
+    // Bounding box for entity extents
+    float minX = path[0].x, maxX = path[0].x;
+    float minY = path[0].y, maxY = path[0].y;
+    for (const auto& p : path) {
+        minX = std::min(minX, p.x); maxX = std::max(maxX, p.x);
+        minY = std::min(minY, p.y); maxY = std::max(maxY, p.y);
+    }
+    position.x = minX;
+    position.y = minY;
+    width  = std::max(maxX - minX, 1.0f);
+    height = std::max(maxY - minY, LIGHT_BULB_SIZE * 3.0f);
+
+    int count = static_cast<int>(totalLen / LIGHT_SPACING);
+    if (count < 2) count = 2;
+    m_bulbs.reserve(count);
+
+    // Place bulbs at equal arc-length intervals using the cumulative table
+    for (int i = 0; i < count; ++i) {
+        float targetDist = static_cast<float>(i) / static_cast<float>(count - 1) * totalLen;
+
+        // Find the segment whose end exceeds targetDist
+        size_t seg = 0;
+        while (seg + 1 < path.size() - 1 && cumDist[seg + 1] < targetDist)
+            ++seg;
+
+        // Interpolate within that segment
+        float segStart = cumDist[seg];
+        float segEnd   = cumDist[seg + 1];
+        float t = (segEnd > segStart)
+                  ? (targetDist - segStart) / (segEnd - segStart)
+                  : 0.0f;
+        t = std::max(0.0f, std::min(1.0f, t));
+
+        LightBulb b;
+        b.position = {path[seg].x + (path[seg+1].x - path[seg].x) * t,
+                      path[seg].y + (path[seg+1].y - path[seg].y) * t};
         b.colorIdx = randomLightColorIdx();
         b.color    = k_lightPalette[b.colorIdx];
         b.state    = LightState::On;

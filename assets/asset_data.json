@@ -1,0 +1,46 @@
+{
+    "small_house":[
+        {
+            "name":"1_story_a",
+            "sprite":"sprites/1_story_a.png",
+            "mask":"sprites/1_story_a_mask.png"
+        },
+        {
+            "name":"2_story_a",
+            "sprite":"sprites/2_story_a.png",
+            "mask":"sprites/2_story_a_mask.png"
+        },
+        {
+            "name":"2_story_b",
+            "sprite":"sprites/2_story_b.png",
+            "mask":"sprites/2_story_b_mask.png"
+        },
+        {
+            "name":"2_story_c",
+            "sprite":"sprites/2_story_c.png",
+            "mask":"sprites/2_story_c_mask.png"
+        },                
+        {
+            "name":"2_story_d",
+            "sprite":"sprites/2_story_d.png",
+            "mask":"sprites/2_story_d_mask.png"
+        }
+    ],
+    "medium_house":[
+        {
+            "name":"1_story_wide_a",
+            "sprite":"sprites/1_story_wide_a.png",
+            "mask":"sprites/1_story_wide_a.png"
+        }
+    ],
+    "large_house":[
+
+    ],
+    "small_tree":[
+
+    ],
+    "tall_tree":[
+
+    ]
+    
+}
