@@ -29,8 +29,8 @@ private:
     struct SnowFlake { float x, y, speed; };
     std::vector<SnowFlake> m_snow;
 
-    void drawBackground(SDL_Renderer* r) const;
-    void drawTitle(SDL_Renderer* r) const;
+    SDL_Texture* m_titleTex = nullptr;  // assets/lights_out_title.png
+
     void drawMenuItems(SDL_Renderer* r) const;
     void drawSnow(SDL_Renderer* r) const;
     void drawControls(SDL_Renderer* r) const;

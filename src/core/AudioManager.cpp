@@ -1,7 +1,9 @@
 #include "core/AudioManager.h"
+#include "core/ChiptunePlayer.h"
 #include "core/Constants.h"
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_mixer.h>
+#include <algorithm>
 #include <cmath>
 #include <numbers>
 #include <vector>
@@ -13,6 +15,10 @@ AudioManager::~AudioManager() {
 }
 
 bool AudioManager::init() {
+    if (!(Mix_Init(MIX_INIT_MP3) & MIX_INIT_MP3)) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                    "SDL_mixer MP3 support unavailable: %s", Mix_GetError());
+    }
     if (Mix_OpenAudio(AUDIO_FREQUENCY, MIX_DEFAULT_FORMAT, AUDIO_CHANNELS, AUDIO_CHUNK_SIZE) < 0) {
         SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
                     "SDL_mixer init failed: %s — audio disabled", Mix_GetError());
@@ -26,6 +32,7 @@ bool AudioManager::init() {
 
 void AudioManager::shutdown() {
     if (!m_initialized) return;
+    ChiptunePlayer::get().stop();
     for (auto& [id, chunk] : m_chunks) {
         if (chunk) Mix_FreeChunk(chunk);
     }
@@ -46,24 +53,49 @@ void AudioManager::playSfx(SoundEffect sfx, int volume) {
     Mix_PlayChannel(-1, it->second, 0);
 }
 
-void AudioManager::playMusic(Music music, bool loop) {
+void AudioManager::playMusic(Music music, bool /*loop*/) {
     if (!m_initialized) return;
+    // Use the procedural chiptune player for all background music.
+    // If a real OGG file was loaded for this track, prefer it; otherwise fall
+    // back to the chiptune generator so there is always something playing.
+    ChiptunePlayer& cp = ChiptunePlayer::get();
     auto it = m_music.find(static_cast<int>(music));
-    if (it == m_music.end() || !it->second) return;
-    Mix_PlayMusic(it->second, loop ? -1 : 1);
-    Mix_VolumeMusic(m_musicVolume);
+    if (it != m_music.end() && it->second) {
+        // A real audio file was loaded — stop chiptune and play it
+        cp.stop();
+        Mix_PlayMusic(it->second, -1);
+        Mix_VolumeMusic(m_musicVolume);
+    } else {
+        // No audio file — start the procedural chiptune engine
+        Mix_HaltMusic();   // stop any previous SDL_mixer music
+        cp.setVolume(m_musicVolume);
+        cp.start(AUDIO_FREQUENCY, AUDIO_CHANNELS);
+    }
 }
 
-void AudioManager::stopMusic()   { if (m_initialized) Mix_HaltMusic(); }
-void AudioManager::pauseMusic()  { if (m_initialized) Mix_PauseMusic(); }
-void AudioManager::resumeMusic() { if (m_initialized) Mix_ResumeMusic(); }
+void AudioManager::stopMusic() {
+    if (!m_initialized) return;
+    ChiptunePlayer::get().stop();
+    Mix_HaltMusic();
+}
+void AudioManager::pauseMusic() {
+    if (!m_initialized) return;
+    ChiptunePlayer::get().setVolume(0);
+    Mix_PauseMusic();
+}
+void AudioManager::resumeMusic() {
+    if (!m_initialized) return;
+    ChiptunePlayer::get().setVolume(m_musicVolume);
+    Mix_ResumeMusic();
+}
 
 void AudioManager::setMusicIntensity(float intensity) {
     if (!m_initialized) return;
-    // Scale music volume between 40% and 100% based on chaos
-    intensity = std::max(0.0f, std::min(1.0f, intensity));
+    intensity = std::clamp(intensity, 0.0f, 1.0f);
     int vol = static_cast<int>(m_musicVolume * (0.4f + 0.6f * intensity));
     Mix_VolumeMusic(vol);
+    if (ChiptunePlayer::get().isPlaying())
+        ChiptunePlayer::get().setVolume(vol);
 }
 
 void AudioManager::setMasterVolume(int vol) {
@@ -76,12 +108,16 @@ void AudioManager::setSfxVolume(int vol) {
 }
 
 void AudioManager::setMusicVolume(int vol) {
-    m_musicVolume = std::max(0, std::min(MIX_MAX_VOLUME, vol));
-    if (m_initialized) Mix_VolumeMusic(m_musicVolume);
+    m_musicVolume = std::clamp(vol, 0, MIX_MAX_VOLUME);
+    if (!m_initialized) return;
+    Mix_VolumeMusic(m_musicVolume);
+    if (ChiptunePlayer::get().isPlaying())
+        ChiptunePlayer::get().setVolume(m_musicVolume);
 }
 
 bool AudioManager::isMusicPlaying() const {
-    return m_initialized && Mix_PlayingMusic() != 0;
+    return m_initialized &&
+           (Mix_PlayingMusic() != 0 || ChiptunePlayer::get().isPlaying());
 }
 
 bool AudioManager::loadSfx(SoundEffect sfx, const std::string& path) {

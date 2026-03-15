@@ -27,7 +27,14 @@ endif()
 # Compiler flags
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -fsanitize=address,undefined -fno-omit-frame-pointer")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native")
+    if(WIN32)
+        # Windows dev machine: optimise for the exact CPU we build on
+        set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native")
+    else()
+        # Linux / Steam Deck: target Zen 2 (all Deck hardware) without locking
+        # to the compile host's CPU so the binary runs on every Deck revision.
+        set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=znver2")
+    endif()
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -DNDEBUG")
     add_compile_options(-Wall -Wextra -Wpedantic -Wno-unused-parameter)
 endif()
@@ -129,8 +136,12 @@ set(CORE_SOURCES
     src/core/Game.cpp
     src/core/InputManager.cpp
     src/core/AudioManager.cpp
+    src/core/ChiptunePlayer.cpp
     src/core/ResourceManager.cpp
     src/core/SpriteRegistry.cpp
+    src/core/HouseAssetLoader.cpp
+    src/core/PlatformData.cpp
+    src/core/DevConsole.cpp
 )
 
 set(GAMEPLAY_SOURCES
@@ -150,6 +161,7 @@ set(GAMEPLAY_SOURCES
     src/gameplay/threats/Cat.cpp
     src/gameplay/threats/Owl.cpp
     src/gameplay/threats/NeighborhoodWatch.cpp
+    src/gameplay/TreeEntity.cpp
     src/gameplay/powerups/PowerUp.cpp
     src/gameplay/powerups/AcornStash.cpp
     src/gameplay/powerups/WinterCoat.cpp
@@ -174,6 +186,7 @@ set(UI_SOURCES
     src/ui/UpgradeScreen.cpp
     src/ui/TownSquareBossScreen.cpp
     src/ui/YouWinScreen.cpp
+    src/ui/ControlsScreen.cpp
 )
 
 set(STEAM_SOURCES
@@ -194,6 +207,7 @@ add_executable(LightsOutChristmas ${ALL_SOURCES})
 
 target_include_directories(LightsOutChristmas PRIVATE
     ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/vendor
 )
 
 # On Windows SDL2main must precede SDL2 in the link order: SDL2main.a

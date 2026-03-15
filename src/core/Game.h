@@ -5,6 +5,7 @@
 #include "core/InputManager.h"
 #include "core/AudioManager.h"
 #include "core/ResourceManager.h"
+#include "core/DevConsole.h"
 #include "rendering/Renderer.h"
 
 #include <SDL2/SDL.h>
@@ -49,6 +50,7 @@ public:
     void              deductScore(int s)  { m_totalScore = std::max(0, m_totalScore - s); }
     int               currentLevel() const { return m_currentLevel; }
     void              nextLevel()          { ++m_currentLevel; }
+    void              setCurrentLevel(int level) { m_currentLevel = level; }
     int               lives()       const  { return m_lives; }
     void              decrementLives()     { if (m_lives > 0) --m_lives; }
     void              resetLives()         { m_lives = PLAYER_LIVES; }
@@ -56,6 +58,9 @@ public:
 
     bool shouldQuit() const { return m_quit; }
     void quit()             { m_quit = true; }
+
+    // Path to the controls binding JSON file
+    const std::string& controlsPath() const { return m_controlsPath; }
 
 private:
     void processEvents();
@@ -87,6 +92,10 @@ private:
     // Fixed-timestep accumulator
     float m_accumulator = 0.0f;
     float m_lastTime    = 0.0f;
+
+    DevConsole  m_devConsole{*this};
+
+    std::string m_controlsPath;
 };
 
 // ─── Abstract Screen base ─────────────────────────────────────────────────────

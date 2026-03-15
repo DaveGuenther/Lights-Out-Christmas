@@ -73,12 +73,14 @@ struct Color {
 // ─── Game states ─────────────────────────────────────────────────────────────
 enum class GameState {
     MainMenu,
+    Controls,        // rebind controls screen
     Playing,
     Paused,
     GameOver,
     Upgrade,
     Leaderboard,
-    TownSquareBoss,  // final boss: demolish the town tree
+    TownSquareBoss,  // alias kept for internal use — prefer GameState::Endgame
+    Endgame,         // LEVEL_ENDGAME: big-tree finale (TownSquareBossScreen)
     YouWin           // victory screen
 };
 
@@ -125,10 +127,10 @@ enum EntityTag : uint32_t {
 
 // ─── Input actions ───────────────────────────────────────────────────────────
 enum class Action {
-    MoveUp,
-    MoveDown,
     MoveLeft,
     MoveRight,
+    Jump,       // launch squirrel upward (was MoveUp)
+    Drop,       // fall through current platform (was MoveDown)
     Bite,
     UsePowerUp,
     Pause,

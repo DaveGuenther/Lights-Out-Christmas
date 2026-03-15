@@ -1,32 +1,35 @@
 #pragma once
 #include "Entity.h"
 #include "LightString.h"
+#include "Lane.h"
+#include "core/HouseAssetLoader.h"
+#include "core/PlatformData.h"
 #include <vector>
 #include <memory>
 
+struct SDL_Renderer;
+
 namespace LightsOut {
 
-// A small decoratable ground-level object (bush or pine tree) that can
-// have Christmas lights on it for the squirrel to bite.
 class BushTree : public Entity {
 public:
-    enum class Type { Bush, PineTree };
-
-    BushTree(float worldX, Type type, int lightCount, float tangledProb, int idx);
+    BushTree(float worldX, const BushAsset& asset, float tangledProb, int idx);
 
     void update(float dt) override;
     void render(SDL_Renderer* renderer, float cameraX) override;
 
     std::vector<std::shared_ptr<LightString>>& lightStrings() { return m_lights; }
+    const std::vector<Platform>&               platforms()    const { return m_platforms; }
     int objectIndex() const { return m_idx; }
 
 private:
-    Type  m_type;
-    int   m_idx;
-    std::vector<std::shared_ptr<LightString>> m_lights;
+    std::string m_spriteName;
+    float       m_spriteW = 0.0f;
+    float       m_spriteH = 0.0f;
+    int         m_idx;
 
-    void drawBush(SDL_Renderer* renderer, float sx) const;
-    void drawPineTree(SDL_Renderer* renderer, float sx) const;
+    std::vector<Platform>                     m_platforms;
+    std::vector<std::shared_ptr<LightString>> m_lights;
 };
 
 }  // namespace LightsOut

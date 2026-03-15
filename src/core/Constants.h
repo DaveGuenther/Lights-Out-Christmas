@@ -5,12 +5,12 @@ namespace LightsOut {
 
 // ─── Display ─────────────────────────────────────────────────────────────────
 // Steam Deck native: 1280x800 (16:10)
-// Pixel art base:    320x200 scaled 4x
+// Pixel art base:    640x400 scaled 2x
 inline constexpr int SCREEN_WIDTH  = 1280;
 inline constexpr int SCREEN_HEIGHT = 800;
-inline constexpr int RENDER_WIDTH  = 320;
-inline constexpr int RENDER_HEIGHT = 200;
-inline constexpr int PIXEL_SCALE   = 4;
+inline constexpr int RENDER_WIDTH  = 640;
+inline constexpr int RENDER_HEIGHT = 400;
+inline constexpr int PIXEL_SCALE   = 2;
 
 // ─── Timing ──────────────────────────────────────────────────────────────────
 inline constexpr float TARGET_FPS      = 60.0f;
@@ -23,28 +23,35 @@ inline constexpr float SCROLL_SPEED_INCREASE = 2.5f;    // per level
 inline constexpr float MAX_SCROLL_SPEED      = 120.0f;
 
 // ─── Lanes (Y = pixel position in render space, top-down) ────────────────────
-// Lane 0: Rooftop  (y 95)  — squirrel runs along the roofline
-// Lane 1: Fence    (y 128) — porch / fence level
-// Lane 2: Ground   (y 160) — street / garden level
+// Lane 0: Rooftop  (y 208) — 2nd story gutter tier (blue mask track)
+// Lane 1: Fence    (y 272) — 1st story gutter tier (yellow mask track)
+// Lane 2: Ground   (y 368) — ground tier (red path + green area lights)
 inline constexpr int   NUM_LANES          = 3;
-inline constexpr float LANE_ROOFTOP_Y     = 95.0f;
-inline constexpr float LANE_FENCE_Y       = 128.0f;
-inline constexpr float LANE_GROUND_Y      = 160.0f;
+inline constexpr float LANE_ROOFTOP_Y     = 208.0f;
+inline constexpr float LANE_FENCE_Y       = 272.0f;
+inline constexpr float LANE_GROUND_Y      = 368.0f;
 
 // ─── Player ──────────────────────────────────────────────────────────────────
 inline constexpr float PLAYER_START_X          = 50.0f;   // default screen X on spawn
-inline constexpr float PLAYER_HORIZONTAL_SPEED = 55.0f;   // px/sec screen-space, left/right move
-inline constexpr float PLAYER_SCREEN_X_MIN     = 20.0f;   // leftmost screen position allowed
-inline constexpr float PLAYER_SCREEN_X_MAX     = 160.0f;  // rightmost screen position allowed
+inline constexpr float PLAYER_HORIZONTAL_SPEED = 120.0f;  // px/sec screen-space, left/right move
+inline constexpr float PLAYER_SCREEN_X_MIN     = 0.0f;    // leftmost screen position allowed
+inline constexpr float PLAYER_SCREEN_X_MAX     = 620.0f;  // rightmost (RENDER_WIDTH - PLAYER_WIDTH)
 inline constexpr float PLAYER_SPEED            = 0.0f;    // world scrolls; player moves relative
-inline constexpr float PLAYER_JUMP_SPEED  = 120.0f;  // vertical speed when jumping between lanes
-inline constexpr float PLAYER_WIDTH       = 12.0f;
-inline constexpr float PLAYER_HEIGHT      = 14.0f;
-inline constexpr float PLAYER_BITE_RANGE  = 16.0f;   // horizontal range for biting lights
-inline constexpr int   PLAYER_LIVES       = 3;
+inline constexpr float PLAYER_WIDTH            = 12.0f;
+inline constexpr float PLAYER_HEIGHT           = 14.0f;
+inline constexpr float PLAYER_BITE_RANGE       = 16.0f;   // horizontal range for biting lights
+inline constexpr int   PLAYER_LIVES            = 3;
 inline constexpr float PLAYER_RESPAWN_INVINCIBILITY = 5.0f;  // invincibility seconds on respawn
 inline constexpr float RESPAWN_THREAT_FREEZE        = 5.0f;  // all threats frozen this long after respawn
 inline constexpr float DEATH_OVERLAY_DURATION       = 2.0f;  // seconds to show death message before respawn
+
+// ─── Physics ─────────────────────────────────────────────────────────────────
+inline constexpr float GRAVITY              = 600.0f;  // px/s² downward acceleration
+inline constexpr float JUMP_VELOCITY        = 350.0f;  // px/s upward on jump
+//   From ground (Y≈368): peak ≈ 245  → lands on fence (272) ✓
+//   From fence  (Y≈272): peak ≈ 149  → lands on rooftop (208) ✓
+inline constexpr float DROP_IGNORE_DURATION = 0.35f;   // seconds to pass through drop tier
+inline constexpr float GROUND_FLOOR_Y       = LANE_GROUND_Y;  // hard floor for physics
 
 // ─── Scoring ─────────────────────────────────────────────────────────────────
 inline constexpr int POINTS_PER_LIGHT           = 10;
@@ -53,16 +60,22 @@ inline constexpr int FULL_HOUSE_MULTIPLIER      = 5;
 inline constexpr int CHAIN_REACTION_BONUS       = 50;
 inline constexpr int SPEED_BONUS_DIVISOR        = 100;   // score / time * divisor
 inline constexpr int NEIGHBORHOOD_BONUS         = 2000;
-inline constexpr float DARKNESS_FILL_PER_LIGHT  = 0.005f;
-inline constexpr float DARKNESS_FILL_PER_HOUSE  = 0.05f;
+inline constexpr float DARKNESS_FILL_PER_LIGHT  = 0.000625f;  // halved — meter fills twice as slowly
+inline constexpr float DARKNESS_FILL_PER_HOUSE  = 0.00625f;   // halved
 
 // ─── House generation ────────────────────────────────────────────────────────
-inline constexpr float HOUSE_MIN_GAP    = 20.0f;    // pixels between houses
-inline constexpr float HOUSE_MAX_GAP    = 50.0f;
-inline constexpr float HOUSE_MIN_WIDTH  = 55.0f;
-inline constexpr float HOUSE_MAX_WIDTH  = 80.0f;
-inline constexpr float HOUSE_HEIGHT     = 65.0f;
-inline constexpr float HOUSE_GROUND_Y   = 165.0f;   // bottom of house
+inline constexpr float HOUSE_MIN_GAP      = 150.0f;  // pixels between houses (tree gap)
+inline constexpr float HOUSE_MAX_GAP      = 250.0f;
+inline constexpr int   TREE_GAP_MIN_COUNT = 1;       // trees per gap
+inline constexpr int   TREE_GAP_MAX_COUNT = 4;
+inline constexpr float TREE_BOTTOM_Y_MIN  = 320.0f;  // lowest allowed bottom-edge Y for trees
+inline constexpr float TREE_BOTTOM_Y_MAX  = 352.0f;
+inline constexpr float TREE_SPACING       = 8.0f;    // min px between adjacent trees in a gap
+inline constexpr float HOUSE_SMALL_WIDTH  = 256.0f;  // small_house sprite width
+inline constexpr float HOUSE_MEDIUM_WIDTH = 320.0f;  // medium_house sprite width
+inline constexpr float HOUSE_LARGE_WIDTH  = 384.0f;  // large_house sprite width
+inline constexpr float HOUSE_HEIGHT       = 320.0f;  // all house sprites are 320px tall
+inline constexpr float HOUSE_GROUND_Y     = 400.0f;  // bottom of house = bottom of screen
 
 // ─── Light strings ───────────────────────────────────────────────────────────
 inline constexpr float LIGHT_BULB_SIZE     = 3.0f;
@@ -95,7 +108,7 @@ inline constexpr float FRENZY_SLOW_FACTOR        = 0.5f;  // world slows to this
 // ─── Particles ───────────────────────────────────────────────────────────────
 inline constexpr int   SPARK_PARTICLE_COUNT = 8;
 inline constexpr float SPARK_SPEED          = 30.0f;
-inline constexpr int   SNOW_PARTICLES       = 60;
+inline constexpr int   SNOW_PARTICLES       = 200;
 inline constexpr float SNOW_FALL_SPEED      = 12.0f;
 
 // ─── Audio ───────────────────────────────────────────────────────────────────
@@ -119,10 +132,11 @@ inline constexpr int UPGRADE_QUIET_STEPS_COST   = 50000;
 // ─── Level count ─────────────────────────────────────────────────────────────
 inline constexpr int NUM_LEVELS = 5;
 // Level indices
-inline constexpr int LEVEL_SUBURBAN     = 0;
-inline constexpr int LEVEL_RICH         = 1;
-inline constexpr int LEVEL_CULDESAC     = 2;
+inline constexpr int LEVEL_SUBURBAN      = 0;
+inline constexpr int LEVEL_RICH          = 1;
+inline constexpr int LEVEL_CULDESAC      = 2;
 inline constexpr int LEVEL_CHRISTMAS_EVE = 3;
-inline constexpr int LEVEL_TOWN_SQUARE  = 4;
+inline constexpr int LEVEL_TOWN_SQUARE   = 4;
+inline constexpr int LEVEL_ENDGAME       = NUM_LEVELS;  // big-tree finale (TownSquareBossScreen)
 
 }  // namespace LightsOut

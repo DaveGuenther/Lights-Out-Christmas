@@ -1,57 +1,99 @@
 #include "gameplay/House.h"
 #include "core/Constants.h"
 #include "core/SpriteRegistry.h"
+#include "core/PlatformData.h"
 #include <SDL2/SDL.h>
-#include <random>
+#include <SDL2/SDL_image.h>
 #include <algorithm>
+#include <cmath>
+#include <map>
+#include <queue>
+#include <random>
+#include <set>
 
 namespace LightsOut {
 
 static std::mt19937 s_houseRng(123);
 
-House::House(float worldX, float worldWidth, HouseStyle style,
-             int houseIndex, int roofStrands, int windowStrands, int porchStrands,
-             float tangledProb)
+// ─── Color matching helpers ───────────────────────────────────────────────────
+static bool isBlue(uint8_t r, uint8_t g, uint8_t b) {
+    return b >= 150 && b > r + 60 && b > g + 40;
+}
+static bool isYellow(uint8_t r, uint8_t g, uint8_t b) {
+    return r > 150 && g > 150 && b < 100;
+}
+static bool isRed(uint8_t r, uint8_t g, uint8_t b) {
+    return r > 150 && g < 100 && b < 100;
+}
+static bool isGreen(uint8_t r, uint8_t g, uint8_t b) {
+    return g > 150 && r < 100 && b < 100;
+}
+
+// ─── Constructor ─────────────────────────────────────────────────────────────
+House::House(float worldX, HouseStyle style, int houseIndex,
+             const HouseAsset& asset,
+             bool hasTopTier, bool hasMiddleTier, bool hasGroundTier,
+             int strands, float tangledProb, SDL_Renderer* renderer,
+             const std::vector<BushAsset>* bushAssets)
     : Entity(TAG_HOUSE)
     , m_houseIndex(houseIndex)
     , m_style(style)
+    , m_spriteWidth(asset.pixelWidth)
+    , m_spriteName(asset.name)
 {
     position.x = worldX;
     position.y = HOUSE_GROUND_Y - HOUSE_HEIGHT;
-    width  = worldWidth;
+    width  = asset.pixelWidth;
     height = HOUSE_HEIGHT;
+    (void)m_style;  // reserved for future style-based rendering variants
 
-    // Random palette per house
-    static const Color walls[]  = {{50,50,65},{45,35,30},{30,50,45},{55,45,35}};
-    static const Color roofs[]  = {{35,25,20},{25,35,45},{40,25,40},{30,40,25}};
-    std::uniform_int_distribution<int> wd(0,3), rd(0,3);
-    wallColor = walls[wd(s_houseRng)];
-    roofColor = roofs[rd(s_houseRng)];
+    HouseMaskData mask = parseMask(asset.maskPath, worldX, asset.pixelWidth, renderer);
 
-    if (roofStrands   > 0) placeRoofLights(roofStrands, tangledProb);
-    if (windowStrands > 0) placeWindowLights(windowStrands, tangledProb);
-    if (porchStrands  > 0) placePorchLights(porchStrands, tangledProb);
+    // Always create lights for any tier that has mask data — ensures painted
+    // sprite lights always have corresponding interactive LightString objects.
+    if (!mask.bluePaths.empty())
+        placeTierLights(mask.bluePaths, LaneType::Rooftop, strands, tangledProb);
+
+    if (!mask.yellowPaths.empty())
+        placeTierLights(mask.yellowPaths, LaneType::Fence, strands, tangledProb);
+
+    placeGroundLights(mask, strands, tangledProb);
+
+    (void)hasTopTier; (void)hasMiddleTier; (void)hasGroundTier;
+
+    placeBushes(mask.greenPoints, worldX, bushAssets);
+
+    // Parse collision map → platforms (pass rendered size so pixel coords are scaled correctly)
+    m_platforms = parsePlatforms(asset.collisionPath, worldX, position.y,
+                                 m_spriteWidth, HOUSE_HEIGHT);
 }
 
+// ─── Update ──────────────────────────────────────────────────────────────────
 void House::update(float dt) {
     for (auto& ls : m_lightStrings) ls->update(dt);
+    for (auto& bt : m_bushTrees)    bt->update(dt);
 
     if (m_porchResetting) {
         m_porchResetTimer -= dt;
         if (m_porchResetTimer <= 0.0f) {
-            m_porchLightOn  = false;
+            m_porchLightOn   = false;
             m_porchResetting = false;
         }
     }
 }
 
+// ─── Render ──────────────────────────────────────────────────────────────────
 void House::render(SDL_Renderer* renderer, float cameraX) {
     float sx = position.x - cameraX;
 
-    drawHouseBody(renderer, sx);
+    SpriteRegistry::draw(renderer, m_spriteName.c_str(),
+                         sx, position.y,
+                         m_spriteWidth, HOUSE_HEIGHT);
+
     drawPorchLight(renderer, sx);
 
     for (auto& ls : m_lightStrings) ls->render(renderer, cameraX);
+    for (auto& bt : m_bushTrees)    bt->render(renderer, cameraX);
 }
 
 bool House::isFullyDark() const {
@@ -61,11 +103,11 @@ bool House::isFullyDark() const {
 }
 
 Vec2 House::porchLightPos() const {
-    return {position.x + width * 0.15f, HOUSE_GROUND_Y - 15.0f};
+    return {position.x + m_spriteWidth * 0.15f, HOUSE_GROUND_Y - 15.0f};
 }
 
 void House::triggerPorchLight() {
-    m_porchLightOn  = true;
+    m_porchLightOn   = true;
     m_porchResetting = false;
 }
 
@@ -74,116 +116,246 @@ void House::resetPorchLight(float delaySeconds) {
     m_porchResetting  = true;
 }
 
-void House::placeRoofLights(int count, float tangledProb) {
-    if (count <= 0) return;
-    std::uniform_real_distribution<float> tangledDist(0.0f, 1.0f);
+// ─── Mask parsing ─────────────────────────────────────────────────────────────
+HouseMaskData House::parseMask(const std::string& maskPath,
+                                float worldX, float worldWidth,
+                                SDL_Renderer* /*renderer*/) const
+{
+    HouseMaskData result;
 
-    float segW = width / static_cast<float>(count);
-    for (int i = 0; i < count; ++i) {
-        float lx = position.x + static_cast<float>(i) * segW;
-        float ly = position.y + 2.0f;  // along roofline
-        bool tangled = tangledDist(s_houseRng) < tangledProb;
-        auto ls = std::make_shared<LightString>(lx, ly, segW - 2.0f, tangled, m_houseIndex);
-        m_lightStrings.push_back(ls);
-    }
-}
+    SDL_Surface* surf = IMG_Load(maskPath.c_str());
+    if (!surf) return result;
 
-void House::placeWindowLights(int count, float tangledProb) {
-    if (count <= 0) return;
-    std::uniform_real_distribution<float> tangledDist(0.0f, 1.0f);
+    SDL_Surface* rgba = SDL_ConvertSurfaceFormat(surf, SDL_PIXELFORMAT_RGBA32, 0);
+    SDL_FreeSurface(surf);
+    if (!rgba) return result;
 
-    // Window-ledge lights sit just below the window row (~20px below house top)
-    float windowY = position.y + 22.0f;
-    float segW    = width / static_cast<float>(count);
-    for (int i = 0; i < count; ++i) {
-        float lx = position.x + static_cast<float>(i) * segW;
-        bool tangled = tangledDist(s_houseRng) < tangledProb;
-        auto ls = std::make_shared<LightString>(lx, windowY, segW - 2.0f, tangled, m_houseIndex);
-        m_lightStrings.push_back(ls);
-    }
-}
+    int imgW = rgba->w;
+    int imgH = rgba->h;
 
-void House::placePorchLights(int count, float tangledProb) {
-    if (count <= 0) return;
-    std::uniform_real_distribution<float> tangledDist(0.0f, 1.0f);
+    // Build pixel-space grids (image coords → world Vec2) for BFS path extraction
+    std::map<IPos, Vec2> blueGrid, yellowGrid, redGrid;
+    std::vector<Vec2> greenPixels;
 
-    float porchY  = HOUSE_GROUND_Y - 22.0f;
-    float porchW  = width * 0.6f;
-    float startX  = position.x + width * 0.2f;
-    float segW    = porchW / static_cast<float>(count);
+    SDL_LockSurface(rgba);
+    const uint8_t* pixels = static_cast<const uint8_t*>(rgba->pixels);
+    int pitch = rgba->pitch;
 
-    for (int i = 0; i < count; ++i) {
-        float lx = startX + static_cast<float>(i) * segW;
-        bool tangled = tangledDist(s_houseRng) < tangledProb;
-        auto ls = std::make_shared<LightString>(lx, porchY, segW - 2.0f, tangled, m_houseIndex);
-        m_lightStrings.push_back(ls);
-    }
-}
+    for (int y = 0; y < imgH; ++y) {
+        for (int x = 0; x < imgW; ++x) {
+            const uint8_t* px = pixels + y * pitch + x * 4;
+            uint8_t r = px[0], g = px[1], b = px[2], a = px[3];
+            if (a < 128) continue;
 
-void House::drawHouseBody(SDL_Renderer* renderer, float screenX) const {
-    // Pick wall / roof / door variants from house index for visual variety
-    static const char* wallSprites[] = {"house_wall_a", "house_wall_b", "house_wall_c"};
-    static const char* roofSprites[] = {"house_roof_a", "house_roof_b", "house_roof_c"};
-    static const char* doorSprites[] = {"house_door_a", "house_door_b"};
+            float wx = worldX + (static_cast<float>(x) / static_cast<float>(imgW)) * worldWidth;
+            float wy = (static_cast<float>(y) / static_cast<float>(imgH)) * HOUSE_HEIGHT
+                       + (HOUSE_GROUND_Y - HOUSE_HEIGHT);
+            Vec2 pt{wx, wy};
 
-    int wallVar = m_houseIndex % 3;
-    int roofVar = (m_houseIndex / 2) % 3;
-    int doorVar = m_houseIndex % 2;
-
-    // Roof (18 px tall, overhangs wall by 2 px each side)
-    float roofW = width + 4.0f;
-    float roofX = screenX - 2.0f;
-    float roofY = position.y;
-    SpriteRegistry::draw(renderer, roofSprites[roofVar], roofX, roofY, roofW, 18.0f);
-
-    // Snow cap on top of roof
-    SpriteRegistry::draw(renderer, "house_snow_cap", roofX, roofY - 2.0f, roofW, 6.0f);
-
-    // Wall (below roof)
-    float wallY = position.y + 18.0f;
-    float wallH = height - 18.0f;
-    SpriteRegistry::draw(renderer, wallSprites[wallVar], screenX, wallY, width, wallH);
-
-    // Icicles along roofline
-    SpriteRegistry::draw(renderer, "house_icicles", screenX, roofY + 16.0f, width, 6.0f);
-
-    // Chimney (natural size 8x14)
-    SpriteRegistry::draw(renderer, "house_chimney",
-                         screenX + width * 0.75f, roofY - 10.0f);
-
-    // Windows — lit or dark based on whether porch light (or any light) is on
-    const char* winSprite = m_porchLightOn ? "house_window" : "house_window";
-    SpriteRegistry::draw(renderer, winSprite,
-                         screenX + width * 0.15f, wallY + 4.0f);
-    SpriteRegistry::draw(renderer, winSprite,
-                         screenX + width * 0.60f, wallY + 4.0f);
-
-    // Door (natural size 12x20)
-    SpriteRegistry::draw(renderer, doorSprites[doorVar],
-                         screenX + width * 0.42f, position.y + height - 22.0f);
-}
-
-void House::drawPorchLight(SDL_Renderer* renderer, float screenX) const {
-    float lpx = screenX + width * 0.15f;
-    float lpy = HOUSE_GROUND_Y - 15.0f;
-
-    // Porch light sprite (8x10, center-left aligned)
-    const char* lightSprite = m_porchLightOn ? "house_porch_light_on" : "house_porch_light_off";
-    SpriteRegistry::draw(renderer, lightSprite, lpx - 4.0f, lpy - 2.0f);
-
-    // When on, add a soft warm cone below (procedural, dynamic effect)
-    if (m_porchLightOn) {
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-        for (int i = 0; i < 5; ++i) {
-            float fi = static_cast<float>(i);
-            SDL_SetRenderDrawColor(renderer, 255, 230, 120,
-                                   static_cast<uint8_t>(50 - i * 8));
-            SDL_FRect cone = {lpx - fi * 2.5f, lpy + fi * 4.0f,
-                              fi * 5.0f + 3.0f, 4.0f};
-            SDL_RenderFillRectF(renderer, &cone);
+            if      (isBlue  (r, g, b)) blueGrid  [{x, y}] = pt;
+            else if (isYellow(r, g, b)) yellowGrid [{x, y}] = pt;
+            else if (isRed   (r, g, b)) redGrid    [{x, y}] = pt;
+            else if (isGreen (r, g, b)) greenPixels.push_back(pt);
         }
-        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
     }
+    SDL_UnlockSurface(rgba);
+    SDL_FreeSurface(rgba);
+
+    result.bluePaths   = extractPaths(blueGrid);
+    result.yellowPaths = extractPaths(yellowGrid);
+    result.redPaths    = extractPaths(redGrid);
+    result.greenPoints = greenPixels;
+
+    return result;
+}
+
+// ─── Path extraction ──────────────────────────────────────────────────────────
+// One path per BFS-connected component (image pixel space), reduced to a
+// centerline so thick strokes don't produce stacked duplicate bulbs.
+// Scan order: bottom-to-top (descending Y), then left-to-right (ascending X).
+std::vector<std::vector<Vec2>> House::extractPaths(
+    const std::map<IPos, Vec2>& grid) const
+{
+    std::vector<std::vector<Vec2>> paths;
+    if (grid.empty()) return paths;
+
+    // Scan order: bottom-to-top, left-to-right
+    std::vector<IPos> scanOrder;
+    scanOrder.reserve(grid.size());
+    for (const auto& [key, _] : grid) scanOrder.push_back(key);
+    std::sort(scanOrder.begin(), scanOrder.end(),
+              [](const IPos& a, const IPos& b) {
+                  if (a.second != b.second) return a.second > b.second;
+                  return a.first < b.first;
+              });
+
+    static constexpr int kDx[] = {-1,-1,-1, 0, 0, 1, 1, 1};
+    static constexpr int kDy[] = {-1, 0, 1,-1, 1,-1, 0, 1};
+
+    std::set<IPos> visited;
+
+    for (const IPos& seed : scanOrder) {
+        if (visited.count(seed)) continue;
+
+        // BFS — collect all 8-connected pixels in this component
+        std::vector<Vec2> component;
+        std::queue<IPos> q;
+        q.push(seed);
+        visited.insert(seed);
+        while (!q.empty()) {
+            auto [cx, cy] = q.front(); q.pop();
+            component.push_back(grid.at({cx, cy}));
+            for (int d = 0; d < 8; ++d) {
+                IPos nb{cx + kDx[d], cy + kDy[d]};
+                if (!visited.count(nb) && grid.count(nb)) {
+                    visited.insert(nb);
+                    q.push(nb);
+                }
+            }
+        }
+        if (component.size() < 2) continue;
+
+        // Reduce to centerline: sort by world X, take median world Y per column
+        std::sort(component.begin(), component.end(),
+                  [](const Vec2& a, const Vec2& b){ return a.x < b.x; });
+
+        std::vector<Vec2> centerline;
+        size_t i = 0;
+        while (i < component.size()) {
+            float colX = component[i].x;
+            size_t j = i;
+            while (j < component.size() && component[j].x == colX) ++j;
+            std::vector<float> ys;
+            ys.reserve(j - i);
+            for (size_t k = i; k < j; ++k) ys.push_back(component[k].y);
+            std::sort(ys.begin(), ys.end());
+            centerline.push_back({colX, ys[ys.size() / 2]});
+            i = j;
+        }
+
+        if (centerline.size() >= 2) paths.push_back(std::move(centerline));
+    }
+    return paths;
+}
+
+// ─── Light placement ──────────────────────────────────────────────────────────
+void House::placeTierLights(const std::vector<std::vector<Vec2>>& paths,
+                             LaneType lane, int /*strands*/, float tangledProb)
+{
+    std::uniform_real_distribution<float> tangledDist(0.0f, 1.0f);
+    // Create a LightString for every connected path in the mask — no cap,
+    // so every visually distinct run of lights becomes an interactive strand.
+    for (const auto& path : paths) {
+        bool tangled = tangledDist(s_houseRng) < tangledProb;
+        auto ls = std::make_shared<LightString>(path, lane, tangled, m_houseIndex);
+        m_lightStrings.push_back(ls);
+    }
+}
+
+void House::placeGroundLights(const HouseMaskData& mask, int /*strands*/, float tangledProb)
+{
+    std::uniform_real_distribution<float> tangledDist(0.0f, 1.0f);
+    for (const auto& path : mask.redPaths) {
+        bool tangled = tangledDist(s_houseRng) < tangledProb;
+        auto ls = std::make_shared<LightString>(path, LaneType::Ground, tangled, m_houseIndex);
+        m_lightStrings.push_back(ls);
+    }
+}
+
+// ─── Bush placement ───────────────────────────────────────────────────────────
+void House::placeBushes(const std::vector<Vec2>& greenPoints,
+                         float /*worldX*/,
+                         const std::vector<BushAsset>* bushAssets)
+{
+    if (greenPoints.empty() || !bushAssets || bushAssets->empty()) return;
+
+    // BFS connected-component search to find distinct green zones (e.g. left/right lawn).
+    // Green pixel coords are in world space with 1:1 pixel mapping.
+    using IPos = std::pair<int,int>;
+    std::map<IPos, float> grid;  // integer pos → world X
+    for (const auto& pt : greenPoints) {
+        int ix = static_cast<int>(std::round(pt.x));
+        int iy = static_cast<int>(std::round(pt.y));
+        grid[{ix, iy}] = pt.x;
+    }
+
+    static constexpr int kDx[] = {-1,-1,-1, 0, 0, 1, 1, 1};
+    static constexpr int kDy[] = {-1, 0, 1,-1, 1,-1, 0, 1};
+
+    std::set<IPos> visited;
+    // Each zone stores {minX, maxX} in world space
+    std::vector<std::pair<float,float>> zones;
+
+    for (const auto& [key, wx] : grid) {
+        if (visited.count(key)) continue;
+
+        float minX = wx, maxX = wx;
+        std::queue<IPos> q;
+        q.push(key);
+        visited.insert(key);
+        while (!q.empty()) {
+            auto [cx, cy] = q.front(); q.pop();
+            float wxx = grid.at({cx, cy});
+            if (wxx < minX) minX = wxx;
+            if (wxx > maxX) maxX = wxx;
+            for (int d = 0; d < 8; ++d) {
+                IPos nb{cx + kDx[d], cy + kDy[d]};
+                if (!visited.count(nb) && grid.count(nb)) {
+                    visited.insert(nb);
+                    q.push(nb);
+                }
+            }
+        }
+        zones.push_back({minX, maxX});
+    }
+
+    if (zones.empty()) return;
+
+    // Distribute 1–5 bushes across zones, at most 3 per zone
+    int totalBushes = std::uniform_int_distribution<int>(1, 5)(s_houseRng);
+    std::uniform_int_distribution<size_t> assetDist(0, bushAssets->size() - 1);
+
+    static int s_bushIdx = 0;
+    int placed = 0;
+    for (size_t zi = 0; zi < zones.size() && placed < totalBushes; ++zi) {
+        float zMin = zones[zi].first;
+        float zMax = zones[zi].second;
+        int remaining  = totalBushes - placed;
+        int zonesLeft  = static_cast<int>(zones.size()) - static_cast<int>(zi);
+        int inThisZone = std::min(remaining, std::min(3, (remaining + zonesLeft - 1) / zonesLeft));
+
+        float span = zMax - zMin;
+        for (int b = 0; b < inThisZone; ++b) {
+            float cx = (inThisZone == 1)
+                       ? zMin + span * 0.5f
+                       : zMin + span * (static_cast<float>(b) / static_cast<float>(inThisZone - 1));
+            const BushAsset& asset = (*bushAssets)[assetDist(s_houseRng)];
+            // Left-align the sprite so its centre sits on cx
+            float bushLeft = cx - asset.pixelWidth * 0.5f;
+            auto bt = std::make_shared<BushTree>(bushLeft, asset, 0.0f, s_bushIdx++);
+            m_bushTrees.push_back(bt);
+            ++placed;
+        }
+    }
+}
+
+// ─── Porch light ─────────────────────────────────────────────────────────────
+void House::drawPorchLight(SDL_Renderer* renderer, float screenX) const {
+    if (!m_porchLightOn) return;
+
+    float lpx = screenX + m_spriteWidth * 0.15f;
+    float lpy = HOUSE_GROUND_Y - 30.0f;
+
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    for (int i = 0; i < 5; ++i) {
+        float fi = static_cast<float>(i);
+        SDL_SetRenderDrawColor(renderer, 255, 230, 120,
+                               static_cast<uint8_t>(50 - i * 8));
+        SDL_FRect cone = {lpx - fi * 2.5f, lpy + fi * 4.0f,
+                          fi * 5.0f + 3.0f, 4.0f};
+        SDL_RenderFillRectF(renderer, &cone);
+    }
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 }
 
 }  // namespace LightsOut

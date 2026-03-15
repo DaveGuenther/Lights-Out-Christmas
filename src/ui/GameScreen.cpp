@@ -45,8 +45,8 @@ void GameScreen::handleInput() {
         return;
     }
 
-    if (input.isActionJustPressed(Action::MoveUp))   m_world.playerMoveUp();
-    if (input.isActionJustPressed(Action::MoveDown))  m_world.playerMoveDown();
+    if (input.isActionJustPressed(Action::Jump))  m_world.playerJump();
+    if (input.isActionJustPressed(Action::Drop))  m_world.playerDrop();
     if (input.isActionJustPressed(Action::Bite))      m_world.playerBite();
     if (input.isActionJustPressed(Action::UsePowerUp)) m_world.playerUsePowerUp();
 }
@@ -71,12 +71,13 @@ void GameScreen::update(float dt) {
         return;
     }
 
-    // Horizontal movement is held-input, so we sample it here where dt is available
+    // Horizontal movement — always forward hdir (0 = idle, ±1 = moving)
+    // GameWorld handles idle drift when hdir == 0
     auto& input = m_game.input();
     float hdir = 0.0f;
     if (input.isActionDown(Action::MoveLeft))  hdir -= 1.0f;
     if (input.isActionDown(Action::MoveRight)) hdir += 1.0f;
-    if (hdir != 0.0f) m_world.playerMoveHorizontal(hdir, dt);
+    m_world.playerMoveHorizontal(hdir, dt);
 
     m_world.update(dt);
     m_particles.setCameraX(m_world.scrollX());
@@ -196,7 +197,7 @@ void GameScreen::drawPowerUpHUD(SDL_Renderer* r) const {
     // Dim background pill
     SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(r, 0, 0, 0, static_cast<uint8_t>(alpha * 140.0f));
-    SDL_FRect bg = {cx - 52.0f, cy - 5.0f, 104.0f, 18.0f};
+    SDL_FRect bg = {cx - 52.0f, cy - 5.0f, 104.0f, 35.0f};
     SDL_RenderFillRectF(r, &bg);
     SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
 
@@ -204,7 +205,7 @@ void GameScreen::drawPowerUpHUD(SDL_Renderer* r) const {
     renderer.drawText(n.name, {cx, cy},
                       {n.col.r, n.col.g, n.col.b, a}, 8, true);
     // Effect description (white, smaller offset below)
-    renderer.drawText(n.desc, {cx, cy + 8.0f},
+    renderer.drawText(n.desc, {cx, cy + 17.0f},
                       {220, 220, 220, a}, 8, true);
 }
 
@@ -264,8 +265,8 @@ void GameScreen::onLevelComplete() {
     m_game.addScore(m_world.scoreSystem().levelScore());
     m_game.nextLevel();
 
-    if (m_game.currentLevel() >= NUM_LEVELS) {
-        m_game.replaceState(GameState::TownSquareBoss);
+    if (m_game.currentLevel() >= LEVEL_ENDGAME) {
+        m_game.replaceState(GameState::Endgame);
     } else {
         m_game.replaceState(GameState::Upgrade);
     }
