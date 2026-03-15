@@ -198,7 +198,8 @@ void Game::buildScreenForState(GameState state) {
     case GameState::Upgrade:
         m_currentScreen = std::make_unique<UpgradeScreen>(*this, 0, m_totalScore);
         break;
-    case GameState::TownSquareBoss:
+    case GameState::TownSquareBoss:  // fallthrough — same screen
+    case GameState::Endgame:
         m_currentScreen = std::make_unique<TownSquareBossScreen>(*this);
         break;
     case GameState::YouWin:

@@ -100,15 +100,15 @@ void UpgradeScreen::drawTitle(SDL_Renderer* r) const {
                                {RENDER_WIDTH * 0.5f, 8.0f},
                                {255, 220, 50}, 8, true);
     m_game.renderer().drawText("LEVEL COMPLETE!",
-                               {RENDER_WIDTH * 0.5f, 18.0f},
+                               {RENDER_WIDTH * 0.5f, 25.0f},
                                {100, 220, 100}, 8, true);
 }
 
 void UpgradeScreen::drawOptions(SDL_Renderer* r) const {
     (void)r;
     auto& renderer = m_game.renderer();
-    float startY = 52.0f;
-    float rowH   = 22.0f;
+    float startY = 68.0f;
+    float rowH   = 36.0f;
 
     for (int i = 0; i < static_cast<int>(m_options.size()); ++i) {
         const auto& opt = m_options[i];
@@ -146,14 +146,14 @@ void UpgradeScreen::drawOptions(SDL_Renderer* r) const {
         if (!maxed) {
             Color costCol = afford ? Color{200, 200, 100} : Color{100, 80, 80};
             renderer.drawText(std::to_string(opt.cost) + "PTS",
-                              {RENDER_WIDTH - 62.0f, y + 8.0f}, costCol);
+                              {RENDER_WIDTH - 62.0f, y + 17.0f}, costCol);
         } else {
-            renderer.drawText("MAX", {RENDER_WIDTH - 62.0f, y + 8.0f},
+            renderer.drawText("MAX", {RENDER_WIDTH - 62.0f, y + 17.0f},
                               {60, 200, 60});
         }
 
         // Description (small)
-        renderer.drawText(opt.description, {15.0f, y + 9.0f},
+        renderer.drawText(opt.description, {15.0f, y + 17.0f},
                           sel ? Color{180, 180, 200} : Color{100, 100, 120});
     }
 
@@ -169,7 +169,7 @@ void UpgradeScreen::drawBudget(SDL_Renderer* r) const {
                       {RENDER_WIDTH * 0.5f, 30.0f},
                       {255, 200, 50}, 8, true);
     renderer.drawText("THIS LEVEL: +" + std::to_string(m_levelScore),
-                      {RENDER_WIDTH * 0.5f, 40.0f},
+                      {RENDER_WIDTH * 0.5f, 47.0f},
                       {100, 220, 100}, 8, true);
 }
 

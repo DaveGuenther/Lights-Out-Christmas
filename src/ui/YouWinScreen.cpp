@@ -73,14 +73,14 @@ void YouWinScreen::drawContent(SDL_Renderer* r) const {
                        {255, 220, 50, a}, 8, true);
 
     renderer.drawText("You plunged the whole",
-                       {RENDER_WIDTH * 0.5f, 48.0f}, {160, 200, 255, a}, 8, true);
+                       {RENDER_WIDTH * 0.5f, 45.0f}, {160, 200, 255, a}, 8, true);
     renderer.drawText("neighborhood into darkness!",
-                       {RENDER_WIDTH * 0.5f, 58.0f}, {160, 200, 255, a}, 8, true);
+                       {RENDER_WIDTH * 0.5f, 62.0f}, {160, 200, 255, a}, 8, true);
 
     renderer.drawText("FINAL SCORE",
-                       {RENDER_WIDTH * 0.5f, 80.0f}, {160, 160, 180, a}, 8, true);
+                       {RENDER_WIDTH * 0.5f, 85.0f}, {160, 160, 180, a}, 8, true);
     renderer.drawText(std::to_string(m_game.totalScore()),
-                       {RENDER_WIDTH * 0.5f, 90.0f}, {255, 220, 50, a}, 8, true);
+                       {RENDER_WIDTH * 0.5f, 102.0f}, {255, 220, 50, a}, 8, true);
 
     if (m_timer > 2.0f) {
         float flash = 0.6f + 0.4f * std::sin(m_timer * 4.0f);

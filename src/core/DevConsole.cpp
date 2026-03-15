@@ -72,10 +72,15 @@ void DevConsole::executeCommand(const std::string& raw) {
         else if (levelName == "LEVEL_CULDESAC")      target = LEVEL_CULDESAC;
         else if (levelName == "LEVEL_CHRISTMAS_EVE") target = LEVEL_CHRISTMAS_EVE;
         else if (levelName == "LEVEL_TOWN_SQUARE")   target = LEVEL_TOWN_SQUARE;
+        else if (levelName == "LEVEL_ENDGAME")       target = LEVEL_ENDGAME;
 
         if (target >= 0) {
             m_game.setCurrentLevel(target);
-            m_game.replaceState(GameState::Playing);
+            if (target >= LEVEL_ENDGAME) {
+                m_game.replaceState(GameState::Endgame);
+            } else {
+                m_game.replaceState(GameState::Playing);
+            }
             m_message = "Loaded " + levelName;
             toggle();  // close console after successful load
         } else {
@@ -94,25 +99,26 @@ void DevConsole::render() {
     SDL_Renderer* sdl = ren.sdl();
 
     // Semi-transparent background strip at bottom of render space
+    // Two rows of 14px glyphs + 3px gap between + 2px top padding = 33px total
     SDL_SetRenderDrawBlendMode(sdl, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(sdl, 0, 0, 0, 200);
     SDL_FRect bg = {0.0f,
-                    static_cast<float>(RENDER_HEIGHT) - 30.0f,
+                    static_cast<float>(RENDER_HEIGHT) - 35.0f,
                     static_cast<float>(RENDER_WIDTH),
-                    30.0f};
+                    35.0f};
     SDL_RenderFillRectF(sdl, &bg);
     SDL_SetRenderDrawBlendMode(sdl, SDL_BLENDMODE_NONE);
 
-    // Previous command result (one line above input)
+    // Previous command result (one row above input, 14px glyph + 3px gap)
     if (!m_message.empty()) {
         ren.drawText(m_message,
-                     {3.0f, static_cast<float>(RENDER_HEIGHT) - 22.0f},
+                     {3.0f, static_cast<float>(RENDER_HEIGHT) - 31.0f},
                      {160, 220, 160});
     }
 
-    // Input line with cursor
+    // Input line with cursor — bottom of glyph sits 1px above screen edge
     ren.drawText("> " + m_input + "_",
-                 {3.0f, static_cast<float>(RENDER_HEIGHT) - 12.0f},
+                 {3.0f, static_cast<float>(RENDER_HEIGHT) - 15.0f},
                  {255, 240, 80});
 }
 

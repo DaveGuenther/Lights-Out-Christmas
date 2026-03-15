@@ -128,17 +128,17 @@ void ControlsScreen::render() {
     renderer.drawText("CONTROLS", {RENDER_WIDTH * 0.5f, 8.0f},
                        {255, 220, 50}, 8, true);
 
-    // Column headers
-    renderer.drawText("ACTION",   {40.0f,  22.0f}, {120, 120, 150}, 8, false);
-    renderer.drawText("KEYBOARD", {200.0f, 22.0f}, {120, 120, 150}, 8, false);
-    renderer.drawText("GAMEPAD",  {360.0f, 22.0f}, {120, 120, 150}, 8, false);
+    // Column headers (title glyph is 14px tall, so headers start at 8+14+4=26)
+    renderer.drawText("ACTION",   {40.0f,  26.0f}, {120, 120, 150}, 8, false);
+    renderer.drawText("KEYBOARD", {242.0f, 26.0f}, {120, 120, 150}, 8, false);
+    renderer.drawText("GAMEPAD",  {402.0f, 26.0f}, {120, 120, 150}, 8, false);
 
-    // Separator line
+    // Separator line (below headers: 26+14+4=44)
     SDL_SetRenderDrawColor(r, 60, 60, 90, 255);
-    SDL_RenderDrawLine(r, 10, 31, RENDER_WIDTH - 10, 31);
+    SDL_RenderDrawLine(r, 10, 44, RENDER_WIDTH - 10, 44);
 
-    float rowH    = 14.0f;
-    float startY  = 36.0f;
+    float rowH    = 20.0f;  // 14px glyph + 6px gap
+    float startY  = 50.0f;
 
     for (int row = 0; row < NUM_ROWS; ++row) {
         float y      = startY + row * rowH;
@@ -161,7 +161,7 @@ void ControlsScreen::render() {
         if (row == RESET_ROW) {
             // "RESET DEFAULTS" row — no binding columns
             if (active) {
-                renderer.drawText("[ PRESS ENTER ]", {200.0f, y},
+                renderer.drawText("[ PRESS ENTER ]", {242.0f, y},
                                    {200, 200, 80}, 8, false);
             }
             continue;
@@ -186,10 +186,10 @@ void ControlsScreen::render() {
             if (colSel && !waiting) {
                 // Draw selection box around keyboard cell
                 SDL_SetRenderDrawColor(r, 255, 220, 50, 255);
-                SDL_FRect box = {192.0f, y - 1.0f, 140.0f, rowH};
+                SDL_FRect box = {234.0f, y - 1.0f, 140.0f, rowH};
                 SDL_RenderDrawRectF(r, &box);
             }
-            renderer.drawText(kName, {200.0f, y}, kCol, 8, false);
+            renderer.drawText(kName, {242.0f, y}, kCol, 8, false);
         }
 
         // Gamepad column
@@ -210,22 +210,22 @@ void ControlsScreen::render() {
                        : Color{140, 160, 220};
             if (colSel && !waiting) {
                 SDL_SetRenderDrawColor(r, 255, 220, 50, 255);
-                SDL_FRect box = {352.0f, y - 1.0f, 140.0f, rowH};
+                SDL_FRect box = {394.0f, y - 1.0f, 140.0f, rowH};
                 SDL_RenderDrawRectF(r, &box);
             }
-            renderer.drawText(pName, {360.0f, y}, pCol, 8, false);
+            renderer.drawText(pName, {402.0f, y}, pCol, 8, false);
         }
     }
 
-    // Footer instructions
+    // Footer instructions (glyph height = 14px, so strip is 14+4=18px)
     SDL_SetRenderDrawColor(r, 40, 40, 60, 255);
     SDL_FRect footerBg = {0.0f, RENDER_HEIGHT - 18.0f,
                           static_cast<float>(RENDER_WIDTH), 18.0f};
     SDL_RenderFillRectF(r, &footerBg);
 
     renderer.drawText(
-        "LEFT/RIGHT: col   ENTER: set   BKSP: clear   ESC: save & exit",
-        {RENDER_WIDTH * 0.5f, RENDER_HEIGHT - 10.0f},
+        "ENTER:SET  BKSP:CLR  L/R:COL  ESC:BACK",
+        {RENDER_WIDTH * 0.5f, RENDER_HEIGHT - 14.0f},
         {100, 100, 120}, 8, true);
 }
 

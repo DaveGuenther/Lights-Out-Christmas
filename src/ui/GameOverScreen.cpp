@@ -72,13 +72,13 @@ void GameOverScreen::drawStats(SDL_Renderer* r) const {
     renderer.drawText("FINAL SCORE",
                        {RENDER_WIDTH * 0.5f, 55.0f}, {160, 160, 180, a}, 8, true);
     renderer.drawText(std::to_string(m_finalScore),
-                       {RENDER_WIDTH * 0.5f, 65.0f}, {255, 220, 50, a}, 8, true);
+                       {RENDER_WIDTH * 0.5f, 72.0f}, {255, 220, 50, a}, 8, true);
 
     int pct = static_cast<int>(m_darknessPct * 100.0f);
     renderer.drawText("DARKNESS",
-                       {RENDER_WIDTH * 0.5f, 82.0f}, {160, 160, 180, a}, 8, true);
+                       {RENDER_WIDTH * 0.5f, 92.0f}, {160, 160, 180, a}, 8, true);
     renderer.drawText(std::to_string(pct) + "%",
-                       {RENDER_WIDTH * 0.5f, 92.0f},
+                       {RENDER_WIDTH * 0.5f, 109.0f},
                        {static_cast<uint8_t>(pct * 2), 50, static_cast<uint8_t>(200 - pct), a},
                        8, true);
 

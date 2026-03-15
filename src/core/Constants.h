@@ -132,10 +132,11 @@ inline constexpr int UPGRADE_QUIET_STEPS_COST   = 50000;
 // ─── Level count ─────────────────────────────────────────────────────────────
 inline constexpr int NUM_LEVELS = 5;
 // Level indices
-inline constexpr int LEVEL_SUBURBAN     = 0;
-inline constexpr int LEVEL_RICH         = 1;
-inline constexpr int LEVEL_CULDESAC     = 2;
+inline constexpr int LEVEL_SUBURBAN      = 0;
+inline constexpr int LEVEL_RICH          = 1;
+inline constexpr int LEVEL_CULDESAC      = 2;
 inline constexpr int LEVEL_CHRISTMAS_EVE = 3;
-inline constexpr int LEVEL_TOWN_SQUARE  = 4;
+inline constexpr int LEVEL_TOWN_SQUARE   = 4;
+inline constexpr int LEVEL_ENDGAME       = NUM_LEVELS;  // big-tree finale (TownSquareBossScreen)
 
 }  // namespace LightsOut

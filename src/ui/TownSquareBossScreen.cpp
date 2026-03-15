@@ -1,11 +1,14 @@
 #include "ui/TownSquareBossScreen.h"
 #include "core/Constants.h"
 #include "core/SpriteRegistry.h"
+#include "core/HouseAssetLoader.h"
+#include "gameplay/TreeEntity.h"
 #include "gameplay/threats/Owl.h"
 #include "gameplay/threats/Cat.h"
 #include "gameplay/threats/Dog.h"
 #include "gameplay/Collision.h"
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
 #include <algorithm>
 #include <cmath>
 
@@ -30,32 +33,35 @@ TownSquareBossScreen::TownSquareBossScreen(Game& game)
 // ─── Tree & Threats ──────────────────────────────────────────────────────────
 
 void TownSquareBossScreen::buildTree() {
-    // Three tiers of lights decorating the town tree.
-    // Each string uses 7px width → 2 bulbs (min enforced in LightString ctor).
-    // tangled = true → 3 bites needed instead of 1.
-    struct StringDef { float xOff; float y; bool tangled; };
-    static const StringDef defs[] = {
-        // Rooftop tier — top of tree, 4 strings
-        { 8.0f, LANE_ROOFTOP_Y,       false },
-        {16.0f, LANE_ROOFTOP_Y,       true  },
-        {24.0f, LANE_ROOFTOP_Y,       false },
-        {32.0f, LANE_ROOFTOP_Y,       true  },
-        // Fence tier — mid tree, 5 strings
-        { 4.0f, LANE_FENCE_Y,         false },
-        {12.0f, LANE_FENCE_Y,         true  },
-        {20.0f, LANE_FENCE_Y,         false },
-        {28.0f, LANE_FENCE_Y,         true  },
-        {36.0f, LANE_FENCE_Y,         false },
-        // Ground tier — base of tree, 4 strings (slightly above ground line)
-        { 2.0f, LANE_GROUND_Y - 8.0f, false },
-        {14.0f, LANE_GROUND_Y - 8.0f, true  },
-        {26.0f, LANE_GROUND_Y - 8.0f, false },
-        {38.0f, LANE_GROUND_Y - 8.0f, true  },
-    };
+    // Build TreeAsset for tree_large — probe actual sprite dimensions.
+    TreeAsset asset;
+    asset.name          = "tree_large";
+    asset.spritePath    = m_game.resources().assetPath("sprites/tree_large.png");
+    asset.maskPath      = m_game.resources().assetPath("sprites/tree_large_mask.png");
+    asset.collisionPath = m_game.resources().assetPath("sprites/tree_large_collision.png");
 
-    for (const auto& d : defs) {
-        auto ls = std::make_shared<LightString>(
-            TREE_WORLD_X + d.xOff, d.y, 7.0f, d.tangled, 0);
+    SDL_Surface* probe = IMG_Load(asset.spritePath.c_str());
+    if (probe) {
+        asset.pixelWidth  = static_cast<float>(probe->w);
+        asset.pixelHeight = static_cast<float>(probe->h);
+        SDL_FreeSurface(probe);
+    } else {
+        asset.pixelWidth  = 177.0f;
+        asset.pixelHeight = 275.0f;
+    }
+
+    // Create a temporary TreeEntity to parse platforms and light strands.
+    // tangledProb = 0.35 so roughly a third of strands need multiple bites.
+    TreeEntity tree(TREE_WORLD_X, LANE_GROUND_Y + 20.0f, asset, 999, 0.35f);
+
+    // Store runtime dimensions and platforms.
+    m_treeSpriteW   = asset.pixelWidth;
+    m_treeSpriteH   = asset.pixelHeight;
+    m_treeSpriteY   = LANE_GROUND_Y + 20.0f - asset.pixelHeight;
+    m_treePlatforms = tree.platforms();
+
+    // Wire every light strand from the tree into m_lights for bite detection.
+    for (auto& ls : tree.lightStrings()) {
         ls->onDark = [](int, bool) {};   // scoring happens on YouWin
         m_lights.push_back(ls);
     }
@@ -63,23 +69,26 @@ void TownSquareBossScreen::buildTree() {
 }
 
 void TownSquareBossScreen::spawnThreats() {
-    // Owls on fence tier — wait patiently then strike
-    m_threats.push_back(std::make_shared<Owl>(
-        TREE_WORLD_X + 62.0f, LANE_FENCE_Y - 14.0f));
-    m_threats.push_back(std::make_shared<Owl>(
-        TREE_WORLD_X - 28.0f, LANE_FENCE_Y - 14.0f));
+    // tree_large is ~177px wide.  Threats are positioned relative to its flanks.
+    const float treeRight = TREE_WORLD_X + m_treeSpriteW;
 
-    // Cats on rooftop — aggressive patrol
-    m_threats.push_back(std::make_shared<Cat>(
-        TREE_WORLD_X + 58.0f, LANE_ROOFTOP_Y - 7.0f));
-    m_threats.push_back(std::make_shared<Cat>(
-        TREE_WORLD_X - 22.0f, LANE_ROOFTOP_Y - 7.0f));
+    // Owls on fence tier — one on each side just beyond the canopy edge
+    m_threats.push_back(std::make_shared<Owl>(
+        treeRight + 35.0f, LANE_FENCE_Y - 14.0f));
+    m_threats.push_back(std::make_shared<Owl>(
+        TREE_WORLD_X - 45.0f, LANE_FENCE_Y - 14.0f));
 
-    // Dogs on ground — chain radius keeps them anchored near the tree
+    // Cats on rooftop — patrol the upper canopy flanks
+    m_threats.push_back(std::make_shared<Cat>(
+        treeRight + 28.0f, LANE_ROOFTOP_Y - 7.0f));
+    m_threats.push_back(std::make_shared<Cat>(
+        TREE_WORLD_X - 38.0f, LANE_ROOFTOP_Y - 7.0f));
+
+    // Dogs on ground — wide chain radius to cover the full tree base
     m_threats.push_back(std::make_shared<Dog>(
-        TREE_WORLD_X + 68.0f, LANE_GROUND_Y - 8.0f, 38.0f));
+        treeRight + 60.0f, LANE_GROUND_Y - 8.0f, 60.0f));
     m_threats.push_back(std::make_shared<Dog>(
-        TREE_WORLD_X - 38.0f, LANE_GROUND_Y - 8.0f, 38.0f));
+        TREE_WORLD_X - 60.0f, LANE_GROUND_Y - 8.0f, 60.0f));
 }
 
 // ─── Snow ─────────────────────────────────────────────────────────────────────
@@ -185,6 +194,8 @@ void TownSquareBossScreen::update(float dt) {
     if (hdir != 0.0f) m_player.moveHorizontal(hdir, dt);
 
     m_player.update(dt);
+    m_player.tickDropTimer(dt);
+    resolvePlatformCollision();
     m_particles.setCameraX(m_cameraX);
     m_particles.update(dt);
 
@@ -260,15 +271,72 @@ void TownSquareBossScreen::onPlayerDeath() {
     m_deathTimer     = DEATH_OVERLAY_DURATION;
 }
 
+// ─── Platform collision ───────────────────────────────────────────────────────
+
+void TownSquareBossScreen::resolvePlatformCollision() {
+    Player& p = m_player;
+    if (p.state() == PlayerState::Dead) return;
+
+    const float prevFeet = p.prevFeetY();
+    const float newFeet  = p.position.y + p.height;
+    const float pLeft    = p.position.x;
+    const float pRight   = p.position.x + p.width;
+
+    bool falling = (p.velocityY() >= 0.0f);
+
+    bool landedThisFrame = false;
+    float bestPlatformY  = 1e9f;
+    LaneType bestTier    = LaneType::Ground;
+
+    static constexpr float STEP_UP   = 6.0f;
+    static constexpr float STEP_DOWN = 4.0f;
+    float checkTop = p.isGrounded() ? newFeet - STEP_UP  : prevFeet;
+    float checkBot = p.isGrounded() ? newFeet + STEP_DOWN : newFeet;
+
+    if (falling) {
+        for (const auto& plat : m_treePlatforms) {
+            if (pRight <= plat.x1 || pLeft >= plat.x2) continue;
+            if (p.isDropping() && plat.tier == p.dropIgnoreTier()) continue;
+            if (plat.y >= checkTop && plat.y <= checkBot) {
+                if (plat.y < bestPlatformY) {
+                    bestPlatformY   = plat.y;
+                    bestTier        = plat.tier;
+                    landedThisFrame = true;
+                }
+            }
+        }
+
+        // Hard ground floor
+        if (!p.isDropping() || p.dropIgnoreTier() != LaneType::Ground) {
+            if (newFeet >= GROUND_FLOOR_Y) {
+                if (GROUND_FLOOR_Y < bestPlatformY) {
+                    bestPlatformY   = GROUND_FLOOR_Y;
+                    bestTier        = LaneType::Ground;
+                    landedThisFrame = true;
+                }
+                if (!landedThisFrame) {
+                    bestPlatformY   = GROUND_FLOOR_Y;
+                    bestTier        = LaneType::Ground;
+                    landedThisFrame = true;
+                }
+            }
+        }
+    }
+
+    if (landedThisFrame)
+        p.landOnPlatform(bestPlatformY, bestTier);
+    else
+        p.setGrounded(false);
+}
+
 // ─── Render ──────────────────────────────────────────────────────────────────
 
 void TownSquareBossScreen::render() {
     SDL_Renderer* r = m_game.renderer().sdl();
 
     renderBackground(r);
-    renderTree(r);
+    renderTree(r);   // also renders all light strands
 
-    for (auto& ls : m_lights)   ls->render(r, m_cameraX);
     for (auto& t  : m_threats)  t->render(r, m_cameraX);
     m_player.render(r, m_cameraX);
     m_particles.render(r);
@@ -299,21 +367,18 @@ void TownSquareBossScreen::renderBackground(SDL_Renderer* r) const {
 
 void TownSquareBossScreen::renderTree(SDL_Renderer* r) const {
     float sx = TREE_WORLD_X - m_cameraX;
-    float sy = LANE_GROUND_Y - TREE_HEIGHT;
 
-    // Scale up the pine_small sprite to fill the whole tree area
-    SpriteRegistry::draw(r, "pine_small", sx, sy, TREE_WIDTH, TREE_HEIGHT);
+    SpriteRegistry::draw(r, "tree_large", sx, m_treeSpriteY, m_treeSpriteW, m_treeSpriteH);
 
-    // Festive warm glow around the tree
+    // Soft festive glow around the tree
     SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(r, 255, 180, 50, 18);
-    SDL_FRect glow = {sx - 8.0f, sy, TREE_WIDTH + 16.0f, TREE_HEIGHT};
+    SDL_SetRenderDrawColor(r, 255, 200, 60, 15);
+    SDL_FRect glow = {sx - 12.0f, m_treeSpriteY, m_treeSpriteW + 24.0f, m_treeSpriteH};
     SDL_RenderFillRectF(r, &glow);
     SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
 
-    // "TOWN TREE" label just below the star on top
-    m_game.renderer().drawText("TOWN TREE",
-        {sx + TREE_WIDTH * 0.5f, sy - 8.0f}, {200, 220, 255}, 6, true);
+    // Render light strands stored in m_lights
+    for (const auto& ls : m_lights) ls->render(r, m_cameraX);
 }
 
 void TownSquareBossScreen::renderLaneGuides(SDL_Renderer* r) const {
@@ -347,12 +412,12 @@ void TownSquareBossScreen::drawHUD(SDL_Renderer* r) const {
     int rem = countLightsRemaining();
     Color remCol = rem > 0 ? Color{255, 220, 50} : Color{100, 255, 100};
     renderer.drawText(std::to_string(rem) + " LIGHTS LEFT",
-                       {RENDER_WIDTH * 0.5f, 12.0f}, remCol, 8, true);
+                       {RENDER_WIDTH * 0.5f, 19.0f}, remCol, 8, true);
 
     renderer.drawText("LIVES " + std::to_string(m_game.lives()),
                        {2.0f, 2.0f}, Color::White());
     renderer.drawText("SCORE " + std::to_string(m_game.totalScore()),
-                       {2.0f, 10.0f}, {180, 180, 200});
+                       {2.0f, 19.0f}, {180, 180, 200});
 }
 
 void TownSquareBossScreen::drawDeathOverlay(SDL_Renderer* r) const {

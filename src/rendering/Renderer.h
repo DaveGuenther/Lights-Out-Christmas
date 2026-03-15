@@ -56,7 +56,6 @@ public:
 private:
     SDL_Renderer* m_renderer     = nullptr;
     SDL_Texture*  m_renderTarget = nullptr;  // 320x200 render target
-    SDL_Texture*  m_font         = nullptr;  // built-in bitmap font
     bool          m_initialized  = false;
 
     void loadBitmapFont();

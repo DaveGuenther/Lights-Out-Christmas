@@ -13,6 +13,9 @@ MainMenu::MainMenu(Game& game) : Screen(game) {
         {"QUIT",     GameState::MainMenu, true},
     };
 
+    // Load title image (ResourceManager::getTexture prepends the asset path internally)
+    m_titleTex = m_game.resources().getTexture("lights_out_title.png");
+
     // Init snow
     std::mt19937 rng(SDL_GetTicks());
     std::uniform_real_distribution<float> xDist(0.0f, static_cast<float>(RENDER_WIDTH));
@@ -47,8 +50,7 @@ void MainMenu::handleInput() {
 }
 
 void MainMenu::update(float dt) {
-    m_titleTimer += dt;
-    m_snowTimer  += dt;
+    m_snowTimer += dt;
 
     for (auto& f : m_snow) {
         f.y += f.speed * dt;
@@ -58,59 +60,20 @@ void MainMenu::update(float dt) {
 
 void MainMenu::render() {
     SDL_Renderer* r = m_game.renderer().sdl();
-    drawBackground(r);
+
+    // ── Title image stretched to fill the full 640×400 render target ─────────
+    if (m_titleTex) {
+        SDL_Rect dst = {0, 0, RENDER_WIDTH, RENDER_HEIGHT};
+        SDL_RenderCopy(r, m_titleTex, nullptr, &dst);
+    } else {
+        // Fallback: plain dark background if texture failed to load
+        SDL_SetRenderDrawColor(r, 8, 12, 35, 255);
+        SDL_RenderClear(r);
+    }
+
     drawSnow(r);
-    drawTitle(r);
     drawMenuItems(r);
     drawControls(r);
-}
-
-void MainMenu::drawBackground(SDL_Renderer* r) const {
-    // Night sky gradient
-    for (int y = 0; y < RENDER_HEIGHT; y += 2) {
-        float t = static_cast<float>(y) / RENDER_HEIGHT;
-        SDL_SetRenderDrawColor(r,
-            static_cast<uint8_t>(8  + t * 12),
-            static_cast<uint8_t>(12 + t * 8),
-            static_cast<uint8_t>(35 + t * 20), 255);
-        SDL_RenderDrawLine(r, 0, y, RENDER_WIDTH, y);
-        SDL_RenderDrawLine(r, 0, y+1, RENDER_WIDTH, y+1);
-    }
-
-    // Ground
-    SDL_SetRenderDrawColor(r, 30, 45, 25, 255);
-    SDL_Rect ground = {0, RENDER_HEIGHT - 30, RENDER_WIDTH, 30};
-    SDL_RenderFillRect(r, &ground);
-
-    // Snow on ground
-    SDL_SetRenderDrawColor(r, 200, 220, 240, 255);
-    SDL_Rect snowGround = {0, RENDER_HEIGHT - 30, RENDER_WIDTH, 5};
-    SDL_RenderFillRect(r, &snowGround);
-
-    // Some silhouetted houses
-    SDL_SetRenderDrawColor(r, 15, 20, 30, 255);
-    int houseY = RENDER_HEIGHT - 30;
-    for (int i = 0; i < 5; ++i) {
-        int hx = i * 65;
-        SDL_Rect hwall = {hx, houseY - 35, 55, 35};
-        SDL_RenderFillRect(r, &hwall);
-        SDL_Rect hroof = {hx - 3, houseY - 45, 61, 14};
-        SDL_RenderFillRect(r, &hroof);
-    }
-
-    // Stars
-    std::mt19937 starRng(0xDEADBEEF);
-    std::uniform_int_distribution<int> sxDist(0, RENDER_WIDTH);
-    std::uniform_int_distribution<int> syDist(0, 80);
-    std::uniform_int_distribution<int> brightDist(100, 220);
-    SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
-    for (int i = 0; i < 45; ++i) {
-        int sx = sxDist(starRng), sy = syDist(starRng);
-        uint8_t b = static_cast<uint8_t>(brightDist(starRng));
-        SDL_SetRenderDrawColor(r, b, b, b, b);
-        SDL_RenderDrawPoint(r, sx, sy);
-    }
-    SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
 }
 
 void MainMenu::drawSnow(SDL_Renderer* r) const {
@@ -123,56 +86,32 @@ void MainMenu::drawSnow(SDL_Renderer* r) const {
     SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
 }
 
-void MainMenu::drawTitle(SDL_Renderer* r) const {
-    // "LIGHTS OUT" on one line, "CHRISTMAS" below
-    // Flash effect using title timer
-    float pulse = 0.7f + 0.3f * std::sin(m_titleTimer * 3.0f);
-    uint8_t brightness = static_cast<uint8_t>(200 * pulse);
-
-    auto& renderer = m_game.renderer();
-
-    // Shadow
-    renderer.drawText("LIGHTS OUT", {RENDER_WIDTH * 0.5f + 1, 22}, {30, 30, 30}, 8, true);
-    renderer.drawText("CHRISTMAS",  {RENDER_WIDTH * 0.5f + 1, 32}, {30, 30, 30}, 8, true);
-
-    // Main text — red for LIGHTS OUT
-    renderer.drawText("LIGHTS OUT", {RENDER_WIDTH * 0.5f, 21},
-                       {brightness, 40, 40}, 8, true);
-    // Green for CHRISTMAS
-    renderer.drawText("CHRISTMAS", {RENDER_WIDTH * 0.5f, 31},
-                       {40, static_cast<uint8_t>(brightness * 0.8f), 40}, 8, true);
-
-    // Squirrel icon (simple)
-    float sq = RENDER_WIDTH * 0.5f + 50.0f;
-    float sy = 24.0f;
-    SDL_SetRenderDrawColor(r, 140, 85, 30, 255);
-    SDL_FRect sbody = {sq, sy, 10, 8};
-    SDL_RenderFillRectF(r, &sbody);
-    SDL_FRect shead = {sq + 5, sy - 4, 7, 6};
-    SDL_RenderFillRectF(r, &shead);
-    SDL_FRect stail = {sq - 3, sy, 4, 8};
-    SDL_RenderFillRectF(r, &stail);
-}
-
 void MainMenu::drawMenuItems(SDL_Renderer* r) const {
     (void)r;
     auto& renderer = m_game.renderer();
 
-    float startY = 65.0f;
-    float spacing = 14.0f;
+    constexpr float startY  = 280.0f;
+    constexpr float spacing = 19.0f;
 
     for (int i = 0; i < static_cast<int>(m_items.size()); ++i) {
+        float y = startY + i * spacing;
+
         Color col = (i == m_selected)
                     ? Color{255, 220, 50}   // selected: yellow
-                    : Color{160, 160, 180}; // unselected: grey
+                    : Color{200, 200, 220}; // unselected: light grey
 
-        // Selection indicator
+        // Drop-shadow for readability over the image
+        renderer.drawText(m_items[i].label,
+                          {RENDER_WIDTH * 0.5f + 1, y + 1},
+                          {0, 0, 0}, 8, true);
+
         if (i == m_selected) {
-            renderer.drawText(">", {RENDER_WIDTH * 0.5f - 30.0f,
-                                    startY + i * spacing}, col);
+            renderer.drawText(">",
+                              {RENDER_WIDTH * 0.5f - 79.0f, y},
+                              col);
         }
         renderer.drawText(m_items[i].label,
-                          {RENDER_WIDTH * 0.5f, startY + i * spacing},
+                          {RENDER_WIDTH * 0.5f, y},
                           col, 8, true);
     }
 }
@@ -180,8 +119,12 @@ void MainMenu::drawMenuItems(SDL_Renderer* r) const {
 void MainMenu::drawControls(SDL_Renderer* r) const {
     (void)r;
     auto& renderer = m_game.renderer();
+    // Shadow then text for readability over the image
     renderer.drawText("UP/DOWN: SELECT   SPACE/A: CONFIRM",
-                      {RENDER_WIDTH * 0.5f, RENDER_HEIGHT - 10.0f},
+                      {RENDER_WIDTH * 0.5f + 1, RENDER_HEIGHT - 13.0f},
+                      {0, 0, 0}, 8, true);
+    renderer.drawText("UP/DOWN: SELECT   SPACE/A: CONFIRM",
+                      {RENDER_WIDTH * 0.5f, RENDER_HEIGHT - 14.0f},
                       {100, 100, 120}, 8, true);
 }
 

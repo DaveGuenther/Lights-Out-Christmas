@@ -79,7 +79,8 @@ enum class GameState {
     GameOver,
     Upgrade,
     Leaderboard,
-    TownSquareBoss,  // final boss: demolish the town tree
+    TownSquareBoss,  // alias kept for internal use — prefer GameState::Endgame
+    Endgame,         // LEVEL_ENDGAME: big-tree finale (TownSquareBossScreen)
     YouWin           // victory screen
 };
 

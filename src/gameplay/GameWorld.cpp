@@ -360,9 +360,15 @@ void GameWorld::generateChunk(float fromX) {
                         houseIdx, m_houseDarkStrands, m_houseTotalStrands);
     }
 
-    // Bring house-owned BushTrees into the world's bush list
-    // (they are already rendered by the house, so no need to add to m_bushTrees)
-    // Any lit bushes from gap get added below.
+    // Wire bush light strands (house-owned bushes) so they're biteable
+    for (auto& bt : house->bushTrees()) {
+        for (auto& ls : bt->lightStrings()) {
+            wireLightString(this, m_lights, ls, m_score, m_darkness,
+                            houseIdx, m_houseDarkStrands, m_houseTotalStrands);
+        }
+    }
+
+    // House-owned BushTrees are rendered by the house; no need to add to m_bushTrees.
 
     m_houses.push_back(house);
 
@@ -605,8 +611,12 @@ void GameWorld::resolvePlatformCollision() {
             }
         };
 
-        for (const auto& h  : m_houses) checkPlatforms(h->platforms());
+        for (const auto& h  : m_houses) {
+            checkPlatforms(h->platforms());
+            for (const auto& bt : h->bushTrees()) checkPlatforms(bt->platforms());
+        }
         for (const auto& te : m_trees)  checkPlatforms(te->platforms());
+        for (const auto& bt : m_bushTrees) checkPlatforms(bt->platforms());
 
         // Hard ground floor
         if (!p.isDropping() || p.dropIgnoreTier() != LaneType::Ground) {

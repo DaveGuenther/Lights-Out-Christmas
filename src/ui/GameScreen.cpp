@@ -197,7 +197,7 @@ void GameScreen::drawPowerUpHUD(SDL_Renderer* r) const {
     // Dim background pill
     SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(r, 0, 0, 0, static_cast<uint8_t>(alpha * 140.0f));
-    SDL_FRect bg = {cx - 52.0f, cy - 5.0f, 104.0f, 18.0f};
+    SDL_FRect bg = {cx - 52.0f, cy - 5.0f, 104.0f, 35.0f};
     SDL_RenderFillRectF(r, &bg);
     SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
 
@@ -205,7 +205,7 @@ void GameScreen::drawPowerUpHUD(SDL_Renderer* r) const {
     renderer.drawText(n.name, {cx, cy},
                       {n.col.r, n.col.g, n.col.b, a}, 8, true);
     // Effect description (white, smaller offset below)
-    renderer.drawText(n.desc, {cx, cy + 8.0f},
+    renderer.drawText(n.desc, {cx, cy + 17.0f},
                       {220, 220, 220, a}, 8, true);
 }
 
@@ -265,8 +265,8 @@ void GameScreen::onLevelComplete() {
     m_game.addScore(m_world.scoreSystem().levelScore());
     m_game.nextLevel();
 
-    if (m_game.currentLevel() >= NUM_LEVELS) {
-        m_game.replaceState(GameState::TownSquareBoss);
+    if (m_game.currentLevel() >= LEVEL_ENDGAME) {
+        m_game.replaceState(GameState::Endgame);
     } else {
         m_game.replaceState(GameState::Upgrade);
     }

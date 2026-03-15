@@ -4,6 +4,7 @@
 #include "gameplay/LightString.h"
 #include "gameplay/threats/Threat.h"
 #include "rendering/Particles.h"
+#include "core/PlatformData.h"
 #include <vector>
 #include <memory>
 #include <random>
@@ -23,11 +24,15 @@ public:
 
 private:
     // ── Scene constants ──────────────────────────────────────────────────────
-    static constexpr float TREE_WORLD_X  = 400.0f;
-    static constexpr float TREE_WIDTH    = 50.0f;
-    static constexpr float TREE_HEIGHT   = 80.0f;
+    static constexpr float TREE_WORLD_X  = 490.0f;   // left edge of tree_large in world space
     static constexpr float LOCK_CAM_X    = 256.0f;   // camera stops scrolling here
     static constexpr float SCROLL_SPEED  = 45.0f;    // px/sec until lock
+
+    // Runtime tree dimensions (probed from sprite at load time)
+    float m_treeSpriteY = 0.0f;
+    float m_treeSpriteW = 177.0f;
+    float m_treeSpriteH = 275.0f;
+    std::vector<Platform> m_treePlatforms;
 
     // ── Entities ─────────────────────────────────────────────────────────────
     Player         m_player;
@@ -59,6 +64,7 @@ private:
     // ── Per-frame helpers ─────────────────────────────────────────────────────
     void updateSnow(float dt);
     void checkCollisions();
+    void resolvePlatformCollision();
     int  countLightsRemaining() const;
     void doRespawn();
     void onPlayerDeath();
