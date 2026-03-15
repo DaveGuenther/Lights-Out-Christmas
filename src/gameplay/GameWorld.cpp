@@ -316,7 +316,10 @@ void GameWorld::generateChunk(float fromX) {
     bool hasTop = false, hasMid = false, hasGnd = false;
     int  strands = std::max(1, m_config.lightStringsPerHouse);
 
-    if (prob(m_rng) >= m_config.darkHouseProbability) {
+    // When the darkness meter is full, all new houses are lit so the player
+    // can keep accumulating points until the level ends.
+    float effectiveDarkProb = m_darkness.isFull() ? 0.0f : m_config.darkHouseProbability;
+    if (prob(m_rng) >= effectiveDarkProb) {
         float r = prob(m_rng);
         HouseDifficulty diff;
         if      (r < m_config.easyHouseFraction)
@@ -808,8 +811,9 @@ void GameWorld::renderLighting(SDL_Renderer* renderer) const {
     // Ambient darkness overlay — deepens as lights are extinguished.
     // Once the meter is full, cap the overlay so new lights remain visible.
     float darkness = m_darkness.darkness();
-    float overlayDark = m_darkness.isFull() ? 0.35f : darkness;
-    uint8_t ambAlpha = static_cast<uint8_t>(25.0f + overlayDark * 90.0f);
+    // Cap the overlay at 0.4 so lights remain visible even when the meter is full
+    float overlayDark = std::min(darkness, 0.4f);
+    uint8_t ambAlpha = static_cast<uint8_t>(15.0f + overlayDark * 70.0f);
     SDL_SetRenderDrawColor(renderer, 0, 0, 12, ambAlpha);
     SDL_FRect full = {0.0f, 0.0f,
                       static_cast<float>(RENDER_WIDTH),

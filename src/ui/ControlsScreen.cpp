@@ -28,7 +28,7 @@ ControlsScreen::ControlsScreen(Game& game) : Screen(game) {}
 
 void ControlsScreen::commitAndBack() {
     m_game.input().saveBindings(m_game.controlsPath());
-    m_game.popState();
+    m_game.replaceState(GameState::MainMenu);
 }
 
 // ─── Input ───────────────────────────────────────────────────────────────────

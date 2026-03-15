@@ -27,7 +27,14 @@ endif()
 # Compiler flags
 if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -fsanitize=address,undefined -fno-omit-frame-pointer")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native")
+    if(WIN32)
+        # Windows dev machine: optimise for the exact CPU we build on
+        set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native")
+    else()
+        # Linux / Steam Deck: target Zen 2 (all Deck hardware) without locking
+        # to the compile host's CPU so the binary runs on every Deck revision.
+        set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=znver2")
+    endif()
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -DNDEBUG")
     add_compile_options(-Wall -Wextra -Wpedantic -Wno-unused-parameter)
 endif()

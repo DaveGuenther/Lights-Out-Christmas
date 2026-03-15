@@ -63,14 +63,21 @@ echo ""
     -G "Ninja" \
     "$SCRIPT_DIR"
 
-"$CMAKE" --build "$BUILD_DIR" --parallel
+# ── Build tests first, then run them ─────────────────────────────────────────
+echo ""
+echo "=== Building tests ==="
+"$CMAKE" --build "$BUILD_DIR" --target LightsOutTests --parallel
 
-if [[ "$1" == "test" ]]; then
-    echo ""
-    echo "=== Running tests ==="
-    "$BUILD_DIR/bin/LightsOutTests.exe" 2>/dev/null \
-        || "$BUILD_DIR/bin/LightsOutTests"
-fi
+echo ""
+echo "=== Running tests ==="
+TEST_BIN="$BUILD_DIR/bin/LightsOutTests.exe"
+[ -f "$TEST_BIN" ] || TEST_BIN="$BUILD_DIR/bin/LightsOutTests"
+"$TEST_BIN"
+echo ""
+
+# ── Build main executable only if tests passed (set -e handles failure) ───────
+echo "=== Building game ==="
+"$CMAKE" --build "$BUILD_DIR" --target LightsOutChristmas --parallel
 
 echo ""
 echo "=== Build complete ==="

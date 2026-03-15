@@ -5,71 +5,61 @@
 using namespace LightsOut;
 using Catch::Approx;
 
-TEST_CASE("BushTree: no lights when lightCount is 0", "[bushtree]") {
-    BushTree bt(100.0f, BushTree::Type::Bush, 0, 0.0f, 0);
+// Build a minimal BushAsset without any real file paths so the
+// constructor skips IMG_Load / parsePlatforms gracefully.
+static BushAsset makeFakeAsset(float w = 40.0f, float h = 30.0f,
+                                const std::string& name = "test_bush") {
+    BushAsset a;
+    a.name          = name;
+    a.spritePath    = "";   // empty → SpriteRegistry::draw is a no-op
+    a.maskPath      = "";   // empty → no light strands created
+    a.collisionPath = "";   // empty → no platforms
+    a.pixelWidth    = w;
+    a.pixelHeight   = h;
+    return a;
+}
+
+TEST_CASE("BushTree: position.x matches worldX passed to constructor", "[bushtree]") {
+    BushAsset asset = makeFakeAsset();
+    float worldX = 350.0f;
+    BushTree bt(worldX, asset, 0.0f, 0);
+    REQUIRE(bt.position.x == Approx(worldX));
+}
+
+TEST_CASE("BushTree: bottom of sprite sits at LANE_GROUND_Y", "[bushtree]") {
+    BushAsset asset = makeFakeAsset(40.0f, 30.0f);
+    BushTree bt(100.0f, asset, 0.0f, 0);
+    REQUIRE(bt.position.y + bt.height == Approx(LANE_GROUND_Y));
+}
+
+TEST_CASE("BushTree: width and height match asset pixel dimensions", "[bushtree]") {
+    BushAsset asset = makeFakeAsset(46.0f, 37.0f);
+    BushTree bt(0.0f, asset, 0.0f, 0);
+    REQUIRE(bt.width  == Approx(46.0f));
+    REQUIRE(bt.height == Approx(37.0f));
+}
+
+TEST_CASE("BushTree: no light strings when maskPath is empty", "[bushtree]") {
+    BushAsset asset = makeFakeAsset();
+    BushTree bt(100.0f, asset, 0.0f, 0);
     REQUIRE(bt.lightStrings().empty());
 }
 
-TEST_CASE("BushTree: creates correct number of light strings", "[bushtree]") {
-    BushTree bt1(100.0f, BushTree::Type::Bush,     1, 0.0f, 0);
-    BushTree bt2(100.0f, BushTree::Type::PineTree, 3, 0.0f, 1);
-    REQUIRE(bt1.lightStrings().size() == 1);
-    REQUIRE(bt2.lightStrings().size() == 3);
-}
-
-TEST_CASE("BushTree: light Y is within vertical bounds of object", "[bushtree]") {
-    BushTree bush(100.0f, BushTree::Type::Bush,     1, 0.0f, 0);
-    BushTree pine(200.0f, BushTree::Type::PineTree, 1, 0.0f, 1);
-
-    for (auto& ls : bush.lightStrings()) {
-        REQUIRE(ls->position.y >= bush.position.y);
-        REQUIRE(ls->position.y <= LANE_GROUND_Y);
-    }
-    for (auto& ls : pine.lightStrings()) {
-        REQUIRE(ls->position.y >= pine.position.y);
-        REQUIRE(ls->position.y <= LANE_GROUND_Y);
-    }
-}
-
-TEST_CASE("BushTree: light X starts within object bounds", "[bushtree]") {
-    float wx = 300.0f;
-    BushTree bt(wx, BushTree::Type::Bush, 2, 0.0f, 0);
-    for (auto& ls : bt.lightStrings()) {
-        REQUIRE(ls->position.x >= wx);
-        REQUIRE(ls->position.x < wx + bt.width);
-    }
+TEST_CASE("BushTree: no platforms when collisionPath is empty", "[bushtree]") {
+    BushAsset asset = makeFakeAsset();
+    BushTree bt(100.0f, asset, 0.0f, 0);
+    REQUIRE(bt.platforms().empty());
 }
 
 TEST_CASE("BushTree: objectIndex returns value passed at construction", "[bushtree]") {
-    BushTree bt(100.0f, BushTree::Type::PineTree, 1, 0.0f, 42);
+    BushAsset asset = makeFakeAsset();
+    BushTree bt(100.0f, asset, 0.0f, 42);
     REQUIRE(bt.objectIndex() == 42);
 }
 
-TEST_CASE("BushTree: pine tree taller than bush", "[bushtree]") {
-    BushTree bush(0.0f, BushTree::Type::Bush,     1, 0.0f, 0);
-    BushTree pine(0.0f, BushTree::Type::PineTree, 1, 0.0f, 1);
-    REQUIRE(pine.height > bush.height);
-}
-
-TEST_CASE("BushTree: both types sit on ground (position.y + height == LANE_GROUND_Y)", "[bushtree]") {
-    BushTree bush(0.0f, BushTree::Type::Bush,     1, 0.0f, 0);
-    BushTree pine(0.0f, BushTree::Type::PineTree, 1, 0.0f, 1);
-    REQUIRE(bush.position.y + bush.height == Approx(LANE_GROUND_Y));
-    REQUIRE(pine.position.y + pine.height == Approx(LANE_GROUND_Y));
-}
-
-TEST_CASE("BushTree: onDark callback fires when strand bitten off", "[bushtree]") {
-    BushTree bt(100.0f, BushTree::Type::Bush, 1, 0.0f, 0);
-    REQUIRE_FALSE(bt.lightStrings().empty());
-
-    int callCount = 0;
-    bt.lightStrings()[0]->onDark = [&](int, bool) { callCount++; };
-
-    auto& ls = bt.lightStrings()[0];
-    int bites = ls->bitesRequired();
-    for (int i = 0; i < bites; ++i) ls->bite();
-
-    // Advance cascade to completion
-    for (int i = 0; i < 100; ++i) ls->update(0.1f);
-    REQUIRE(callCount == 1);
+TEST_CASE("BushTree: position.y is LANE_GROUND_Y minus asset height", "[bushtree]") {
+    float h = 35.0f;
+    BushAsset asset = makeFakeAsset(50.0f, h);
+    BushTree bt(0.0f, asset, 0.0f, 0);
+    REQUIRE(bt.position.y == Approx(LANE_GROUND_Y - h));
 }

@@ -60,8 +60,8 @@ inline constexpr int FULL_HOUSE_MULTIPLIER      = 5;
 inline constexpr int CHAIN_REACTION_BONUS       = 50;
 inline constexpr int SPEED_BONUS_DIVISOR        = 100;   // score / time * divisor
 inline constexpr int NEIGHBORHOOD_BONUS         = 2000;
-inline constexpr float DARKNESS_FILL_PER_LIGHT  = 0.00125;
-inline constexpr float DARKNESS_FILL_PER_HOUSE  = 0.0125f;
+inline constexpr float DARKNESS_FILL_PER_LIGHT  = 0.000625f;  // halved — meter fills twice as slowly
+inline constexpr float DARKNESS_FILL_PER_HOUSE  = 0.00625f;   // halved
 
 // ─── House generation ────────────────────────────────────────────────────────
 inline constexpr float HOUSE_MIN_GAP      = 150.0f;  // pixels between houses (tree gap)

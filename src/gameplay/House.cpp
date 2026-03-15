@@ -269,43 +269,73 @@ void House::placeBushes(const std::vector<Vec2>& greenPoints,
 {
     if (greenPoints.empty() || !bushAssets || bushAssets->empty()) return;
 
-    // Cluster green pixels by proximity to find distinct bush slots
-    float clusterRadius = 16.0f;
-    std::vector<bool> used(greenPoints.size(), false);
-    std::vector<float> clusterCenters;
+    // BFS connected-component search to find distinct green zones (e.g. left/right lawn).
+    // Green pixel coords are in world space with 1:1 pixel mapping.
+    using IPos = std::pair<int,int>;
+    std::map<IPos, float> grid;  // integer pos → world X
+    for (const auto& pt : greenPoints) {
+        int ix = static_cast<int>(std::round(pt.x));
+        int iy = static_cast<int>(std::round(pt.y));
+        grid[{ix, iy}] = pt.x;
+    }
 
-    for (size_t i = 0; i < greenPoints.size(); ++i) {
-        if (used[i]) continue;
-        used[i] = true;
+    static constexpr int kDx[] = {-1,-1,-1, 0, 0, 1, 1, 1};
+    static constexpr int kDy[] = {-1, 0, 1,-1, 1,-1, 0, 1};
 
-        float cx    = greenPoints[i].x;
-        int   count = 1;
+    std::set<IPos> visited;
+    // Each zone stores {minX, maxX} in world space
+    std::vector<std::pair<float,float>> zones;
 
-        for (size_t j = i + 1; j < greenPoints.size(); ++j) {
-            if (!used[j]) {
-                float dx = greenPoints[j].x - cx;
-                float dy = greenPoints[j].y - greenPoints[i].y;
-                if (std::sqrt(dx*dx + dy*dy) < clusterRadius) {
-                    cx = (cx * static_cast<float>(count) + greenPoints[j].x)
-                         / static_cast<float>(count + 1);
-                    ++count;
-                    used[j] = true;
+    for (const auto& [key, wx] : grid) {
+        if (visited.count(key)) continue;
+
+        float minX = wx, maxX = wx;
+        std::queue<IPos> q;
+        q.push(key);
+        visited.insert(key);
+        while (!q.empty()) {
+            auto [cx, cy] = q.front(); q.pop();
+            float wxx = grid.at({cx, cy});
+            if (wxx < minX) minX = wxx;
+            if (wxx > maxX) maxX = wxx;
+            for (int d = 0; d < 8; ++d) {
+                IPos nb{cx + kDx[d], cy + kDy[d]};
+                if (!visited.count(nb) && grid.count(nb)) {
+                    visited.insert(nb);
+                    q.push(nb);
                 }
             }
         }
-        clusterCenters.push_back(cx);
+        zones.push_back({minX, maxX});
     }
 
-    // Limit to 5 bushes per house
-    if (clusterCenters.size() > 5) clusterCenters.resize(5);
+    if (zones.empty()) return;
 
-    static int s_bushIdx = 0;
+    // Distribute 1–5 bushes across zones, at most 3 per zone
+    int totalBushes = std::uniform_int_distribution<int>(1, 5)(s_houseRng);
     std::uniform_int_distribution<size_t> assetDist(0, bushAssets->size() - 1);
 
-    for (float cx : clusterCenters) {
-        const BushAsset& asset = (*bushAssets)[assetDist(s_houseRng)];
-        auto bt = std::make_shared<BushTree>(cx, asset, 0.0f, s_bushIdx++);
-        m_bushTrees.push_back(bt);
+    static int s_bushIdx = 0;
+    int placed = 0;
+    for (size_t zi = 0; zi < zones.size() && placed < totalBushes; ++zi) {
+        float zMin = zones[zi].first;
+        float zMax = zones[zi].second;
+        int remaining  = totalBushes - placed;
+        int zonesLeft  = static_cast<int>(zones.size()) - static_cast<int>(zi);
+        int inThisZone = std::min(remaining, std::min(3, (remaining + zonesLeft - 1) / zonesLeft));
+
+        float span = zMax - zMin;
+        for (int b = 0; b < inThisZone; ++b) {
+            float cx = (inThisZone == 1)
+                       ? zMin + span * 0.5f
+                       : zMin + span * (static_cast<float>(b) / static_cast<float>(inThisZone - 1));
+            const BushAsset& asset = (*bushAssets)[assetDist(s_houseRng)];
+            // Left-align the sprite so its centre sits on cx
+            float bushLeft = cx - asset.pixelWidth * 0.5f;
+            auto bt = std::make_shared<BushTree>(bushLeft, asset, 0.0f, s_bushIdx++);
+            m_bushTrees.push_back(bt);
+            ++placed;
+        }
     }
 }
 
