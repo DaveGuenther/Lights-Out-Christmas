@@ -25,6 +25,7 @@ bool Game::init(const char* title) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_Init failed: %s", SDL_GetError());
         return false;
     }
+    SDL_StopTextInput();  // prevent Steam Deck on-screen keyboard from popping up
 
     if (!(IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG)) {
         SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "IMG_Init PNG failed: %s", IMG_GetError());
