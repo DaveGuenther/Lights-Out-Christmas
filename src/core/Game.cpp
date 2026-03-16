@@ -59,14 +59,21 @@ bool Game::init(const char* title) {
 
     m_audio.init();  // non-fatal if audio fails
 
-    // Load MP3 music for all gameplay levels (falls back to chiptune if file missing)
+    // Load music for all gameplay levels — prefer OGG (works on Linux/Steam Deck),
+    // fall back to MP3 if OGG is not present.
     {
+        std::string ogg = m_resources.assetPath("music/sugar_plum_fairy.ogg");
         std::string mp3 = m_resources.assetPath("music/sugar_plum_fairy.mp3");
-        m_audio.loadMusic(Music::Level1, mp3);
-        m_audio.loadMusic(Music::Level2, mp3);
-        m_audio.loadMusic(Music::Level3, mp3);
-        m_audio.loadMusic(Music::Level4, mp3);
-        m_audio.loadMusic(Music::Level5, mp3);
+        // Try OGG first; if it fails loadMusic will warn and return false, then try MP3.
+        auto loadTrack = [&](Music track) {
+            if (!m_audio.loadMusic(track, ogg))
+                m_audio.loadMusic(track, mp3);
+        };
+        loadTrack(Music::Level1);
+        loadTrack(Music::Level2);
+        loadTrack(Music::Level3);
+        loadTrack(Music::Level4);
+        loadTrack(Music::Level5);
     }
 
     // Start at main menu

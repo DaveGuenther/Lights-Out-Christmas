@@ -15,10 +15,14 @@ AudioManager::~AudioManager() {
 }
 
 bool AudioManager::init() {
-    if (!(Mix_Init(MIX_INIT_MP3) & MIX_INIT_MP3)) {
+    int mixFlags = MIX_INIT_OGG | MIX_INIT_MP3;
+    int mixLoaded = Mix_Init(mixFlags);
+    if (!(mixLoaded & MIX_INIT_OGG))
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                    "SDL_mixer OGG support unavailable: %s", Mix_GetError());
+    if (!(mixLoaded & MIX_INIT_MP3))
         SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
                     "SDL_mixer MP3 support unavailable: %s", Mix_GetError());
-    }
     if (Mix_OpenAudio(AUDIO_FREQUENCY, MIX_DEFAULT_FORMAT, AUDIO_CHANNELS, AUDIO_CHUNK_SIZE) < 0) {
         SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
                     "SDL_mixer init failed: %s — audio disabled", Mix_GetError());
