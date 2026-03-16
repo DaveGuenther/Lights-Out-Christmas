@@ -26,19 +26,30 @@ bool AudioManager::init() {
 
     // On Linux (Steam Deck), the default audio driver may not open cleanly.
     // Cycle through pipewire → pulse → alsa until Mix_OpenAudio succeeds.
+    const char* activeDriver = SDL_GetCurrentAudioDriver();
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
+                "Audio: SDL driver = %s", activeDriver ? activeDriver : "(none)");
+
     bool opened = (Mix_OpenAudio(AUDIO_FREQUENCY, MIX_DEFAULT_FORMAT,
                                  AUDIO_CHANNELS, AUDIO_CHUNK_SIZE) == 0);
+    SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
+                "Audio: Mix_OpenAudio (default) = %s%s",
+                opened ? "OK" : "FAILED", opened ? "" : Mix_GetError());
+
 #ifdef __linux__
     if (!opened) {
         static const char* kDrivers[] = { "pipewire", "pulse", "alsa", nullptr };
         for (const char** drv = kDrivers; *drv && !opened; ++drv) {
-            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
-                        "Mix_OpenAudio failed, retrying with SDL_AUDIODRIVER=%s", *drv);
+            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
+                        "Audio: retrying with SDL_AUDIODRIVER=%s", *drv);
             SDL_QuitSubSystem(SDL_INIT_AUDIO);
             SDL_setenv("SDL_AUDIODRIVER", *drv, 1);
             SDL_InitSubSystem(SDL_INIT_AUDIO);
             opened = (Mix_OpenAudio(AUDIO_FREQUENCY, MIX_DEFAULT_FORMAT,
                                     AUDIO_CHANNELS, AUDIO_CHUNK_SIZE) == 0);
+            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
+                        "Audio: Mix_OpenAudio (%s) = %s%s",
+                        *drv, opened ? "OK" : "FAILED", opened ? "" : Mix_GetError());
         }
     }
 #endif
