@@ -79,6 +79,25 @@ echo ""
 echo "=== Building game ==="
 "$CMAKE" --build "$BUILD_DIR" --target LightsOutChristmas --parallel
 
+# ── Copy assets to bin/ (CMake's post-build copy uses cmd.exe which fails in MSYS2) ──
+echo "=== Copying assets ==="
+cp -r "$SCRIPT_DIR/assets" "$BUILD_DIR/bin/"
+
+# ── Copy audio codec DLLs on Windows (needed by SDL2_mixer for OGG/MP3) ──────
+# On Linux SDL2_mixer links against system libraries; no copying needed.
+if [ -n "$MSYS_ROOT" ]; then
+    echo "=== Copying audio codec DLLs ==="
+    CODEC_DLLS=(libogg-0.dll libvorbis-0.dll libvorbisfile-3.dll libmpg123-0.dll)
+    for dll in "${CODEC_DLLS[@]}"; do
+        src="$MSYS_ROOT/bin/$dll"
+        dst="$BUILD_DIR/bin/$dll"
+        if [ -f "$src" ] && { [ ! -f "$dst" ] || [ "$src" -nt "$dst" ]; }; then
+            cp "$src" "$dst"
+            echo "  Copied $dll"
+        fi
+    done
+fi
+
 echo ""
 echo "=== Build complete ==="
 echo "Executable: $BUILD_DIR/bin/LightsOutChristmas"

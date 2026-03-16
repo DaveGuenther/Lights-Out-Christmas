@@ -23,11 +23,31 @@ bool AudioManager::init() {
     if (!(mixLoaded & MIX_INIT_MP3))
         SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
                     "SDL_mixer MP3 support unavailable: %s", Mix_GetError());
-    if (Mix_OpenAudio(AUDIO_FREQUENCY, MIX_DEFAULT_FORMAT, AUDIO_CHANNELS, AUDIO_CHUNK_SIZE) < 0) {
+
+    // On Linux (Steam Deck), the default audio driver may not open cleanly.
+    // Cycle through pipewire → pulse → alsa until Mix_OpenAudio succeeds.
+    bool opened = (Mix_OpenAudio(AUDIO_FREQUENCY, MIX_DEFAULT_FORMAT,
+                                 AUDIO_CHANNELS, AUDIO_CHUNK_SIZE) == 0);
+#ifdef __linux__
+    if (!opened) {
+        static const char* kDrivers[] = { "pipewire", "pulse", "alsa", nullptr };
+        for (const char** drv = kDrivers; *drv && !opened; ++drv) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                        "Mix_OpenAudio failed, retrying with SDL_AUDIODRIVER=%s", *drv);
+            SDL_QuitSubSystem(SDL_INIT_AUDIO);
+            SDL_setenv("SDL_AUDIODRIVER", *drv, 1);
+            SDL_InitSubSystem(SDL_INIT_AUDIO);
+            opened = (Mix_OpenAudio(AUDIO_FREQUENCY, MIX_DEFAULT_FORMAT,
+                                    AUDIO_CHANNELS, AUDIO_CHUNK_SIZE) == 0);
+        }
+    }
+#endif
+    if (!opened) {
         SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
                     "SDL_mixer init failed: %s — audio disabled", Mix_GetError());
         return false;  // non-fatal
     }
+
     Mix_AllocateChannels(AUDIO_MIX_CHANNELS);
     m_initialized = true;
     loadAllPlaceholders();
