@@ -1,0 +1,11 @@
+INFO: Audio: SDL driver = alsa
+INFO: Audio: Mix_OpenAudio (default) = FAILEDALSA: Couldn't open audio device: No such file or directory
+INFO: Audio: retrying with SDL_AUDIODRIVER=pipewire
+INFO: Audio: Mix_OpenAudio (pipewire) = FAILEDFailed loading libpipewire-0.3.so.0: libpipewire-0.3.so.0: cannot open shared object file: No such file or directory
+INFO: Audio: retrying with SDL_AUDIODRIVER=pulse
+INFO: Audio: Mix_OpenAudio (pulse) = FAILEDFailed loading libpulse.so.0: libpulse.so.0: cannot open shared object file: No such file or directory
+INFO: Audio: retrying with SDL_AUDIODRIVER=alsa
+INFO: Audio: Mix_OpenAudio (alsa) = FAILEDALSA: Couldn't open audio device: No such file or directory
+WARN: SDL_mixer init failed: ALSA: Couldn't open audio device: No such file or directory — audio disabled
+WARN: Could not load music '/home/deck/Lights-Out-Christmas/build-release/bin/assets/music/sugar_plum_fairy.ogg': Unrecognized audio format
+WARN: Could not load music '/home/deck/Lights-Out-Christmas/build-release/bin/assets/music/sugar_plum_fairy.mp3': Unrecognized audio format
